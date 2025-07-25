@@ -41,10 +41,16 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 // Import routes
 const authRoutes = require('./route/authRoutes');
 const productRoutes = require('./route/productRoutes');
+const cartRoutes = require('./route/cartRoutes');
+const orderRoutes = require('./route/orderRoutes');
+const userRoutes = require('./route/userRoutes');
 
 // Mount routes
 app.use('/api/auth', authRoutes);
 app.use('/api/products', productRoutes);
+app.use('/api/cart', cartRoutes);
+app.use('/api/orders', orderRoutes);
+app.use('/api/users', userRoutes);
 
 // Basic route
 app.get('/', (req, res) => {
