@@ -2,6 +2,7 @@ const Order = require('../model/Order');
 const Cart = require('../model/Cart');
 const Product = require('../model/Product');
 const { validationResult } = require('express-validator');
+const { sendOrderConfirmationEmail, sendOrderStatusUpdateEmail } = require('../utils/sendEmail');
 
 // @desc    Create new order
 // @route   POST /api/orders
@@ -20,7 +21,7 @@ const createOrder = async (req, res) => {
 
     const { items, shippingAddress, paymentMethod, paymentInfo } = req.body;
 
-    // Calculate order totals
+    // Calculate order totals and verify stock
     let subtotal = 0;
     const orderItems = [];
 
@@ -37,6 +38,14 @@ const createOrder = async (req, res) => {
         return res.status(400).json({
           success: false,
           message: `Product ${product.name} is out of stock`
+        });
+      }
+
+      // Check if sufficient stock is available
+      if (product.stockQuantity < item.quantity) {
+        return res.status(400).json({
+          success: false,
+          message: `Insufficient stock for ${product.name}. Available: ${product.stockQuantity}, Requested: ${item.quantity}`
         });
       }
 
@@ -66,15 +75,22 @@ const createOrder = async (req, res) => {
       subtotal,
       shippingFee,
       totalAmount,
-      isPaid: paymentMethod === 'cod' ? false : true, // COD orders are not paid initially
-      paidAt: paymentMethod === 'cod' ? null : new Date()
+      isPaid: paymentMethod === 'cod' ? false : false, // Will be updated after payment
+      paidAt: paymentMethod === 'cod' ? null : null
     });
 
-    // Clear user's cart after successful order
-    await Cart.findOneAndUpdate(
-      { userId: req.user._id },
-      { items: [], totalAmount: 0, totalItems: 0 }
-    );
+    // For COD orders, update inventory immediately
+    if (paymentMethod === 'cod') {
+      await updateInventory(orderItems);
+      
+      // Send order confirmation email for COD
+      try {
+        await sendOrderConfirmationEmail(req.user.email, order);
+      } catch (emailError) {
+        console.error('Email sending failed:', emailError);
+        // Don't fail the order creation if email fails
+      }
+    }
 
     res.status(201).json({
       success: true,
@@ -194,13 +210,15 @@ const updateOrderStatus = async (req, res) => {
       });
     }
 
-    const order = await Order.findById(req.params.id);
+    const order = await Order.findById(req.params.id).populate('userId', 'email');
     if (!order) {
       return res.status(404).json({
         success: false,
         message: 'Order not found'
       });
     }
+
+    const previousStatus = order.orderStatus;
 
     // Update order status
     order.orderStatus = orderStatus;
@@ -210,7 +228,19 @@ const updateOrderStatus = async (req, res) => {
       order.deliveredAt = new Date();
     }
 
+    // Handle cancelled orders - restore inventory
+    if (orderStatus === 'cancelled' && previousStatus !== 'cancelled') {
+      await restoreInventory(order.items);
+    }
+
     await order.save();
+
+    // Send status update email
+    try {
+      await sendOrderStatusUpdateEmail(order.userId.email, order);
+    } catch (emailError) {
+      console.error('Email sending failed:', emailError);
+    }
 
     res.status(200).json({
       success: true,
@@ -340,11 +370,65 @@ const getAllOrders = async (req, res) => {
   }
 };
 
+// Add this to your orderController.js after payment verification
+const completeOrderAfterPayment = async (orderId, paymentInfo) => {
+  try {
+    const order = await Order.findById(orderId).populate('userId', 'email');
+    if (!order) {
+      throw new Error('Order not found');
+    }
+
+    // Update inventory
+    await updateInventory(order.items);
+
+    // Send confirmation email
+    await sendOrderConfirmationEmail(order.userId.email, order);
+
+    return order;
+  } catch (error) {
+    console.error('Order completion error:', error);
+    throw error;
+  }
+};
+
+// Helper function to update inventory
+const updateInventory = async (orderItems) => {
+  for (const item of orderItems) {
+    await Product.findByIdAndUpdate(
+      item.productId,
+      {
+        $inc: { stockQuantity: -item.quantity }
+      }
+    );
+
+    // Check if product is out of stock
+    const product = await Product.findById(item.productId);
+    if (product.stockQuantity <= 0) {
+      product.inStock = false;
+      await product.save();
+    }
+  }
+};
+
+// Helper function to restore inventory (for cancelled orders)
+const restoreInventory = async (orderItems) => {
+  for (const item of orderItems) {
+    await Product.findByIdAndUpdate(
+      item.productId,
+      {
+        $inc: { stockQuantity: item.quantity },
+        inStock: true
+      }
+    );
+  }
+};
+
 module.exports = {
   createOrder,
   getUserOrders,
   getOrderById,
   updateOrderStatus,
   cancelOrder,
-  getAllOrders
+  getAllOrders,
+  completeOrderAfterPayment
 };

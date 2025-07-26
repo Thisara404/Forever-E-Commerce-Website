@@ -44,6 +44,7 @@ const productRoutes = require('./route/productRoutes');
 const cartRoutes = require('./route/cartRoutes');
 const orderRoutes = require('./route/orderRoutes');
 const userRoutes = require('./route/userRoutes');
+const paymentRoutes = require('./route/paymentRoutes');
 
 // Mount routes
 app.use('/api/auth', authRoutes);
@@ -51,6 +52,7 @@ app.use('/api/products', productRoutes);
 app.use('/api/cart', cartRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/payments', paymentRoutes);
 
 // Basic route
 app.get('/', (req, res) => {
