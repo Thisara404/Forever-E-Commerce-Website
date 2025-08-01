@@ -3,17 +3,56 @@ const Order = require('../model/Order');
 const Cart = require('../model/Cart');
 const Product = require('../model/Product');
 const { payHereConfig, generatePayHereHash, verifyPayHereHash } = require('../config/payhere');
-const crypto = require('crypto');
 
 // @desc    Create Stripe Payment Intent
 // @route   POST /api/payments/stripe/create-payment-intent
 // @access  Private
 const createStripePaymentIntent = async (req, res) => {
   try {
+    console.log('Stripe request received:', req.body);
+    
     const { amount, currency = 'lkr', orderId } = req.body;
 
+    // Validate inputs
+    if (!amount || amount <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid amount provided',
+        debug: { amount, type: typeof amount }
+      });
+    }
+
+    if (!orderId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Order ID is required'
+      });
+    }
+
+    // Verify the order exists and belongs to user
+    const order = await Order.findById(orderId);
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        message: 'Order not found'
+      });
+    }
+
+    if (order.userId.toString() !== req.user._id.toString()) {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied'
+      });
+    }
+
     // Convert amount to cents for Stripe
-    const amountInCents = Math.round(amount * 100);
+    const amountInCents = Math.round(parseFloat(amount) * 100);
+    
+    console.log('Creating Stripe payment intent:', {
+      amount: amountInCents,
+      currency: currency.toLowerCase(),
+      orderId
+    });
 
     const paymentIntent = await stripe.paymentIntents.create({
       amount: amountInCents,
@@ -27,6 +66,8 @@ const createStripePaymentIntent = async (req, res) => {
       },
     });
 
+    console.log('Payment intent created successfully:', paymentIntent.id);
+
     res.status(200).json({
       success: true,
       clientSecret: paymentIntent.client_secret,
@@ -38,7 +79,11 @@ const createStripePaymentIntent = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Failed to create payment intent',
-      error: error.message
+      error: error.message,
+      debug: process.env.NODE_ENV === 'development' ? {
+        stack: error.stack,
+        stripeConfigured: !!process.env.STRIPE_SECRET_KEY
+      } : undefined
     });
   }
 };
@@ -49,6 +94,13 @@ const createStripePaymentIntent = async (req, res) => {
 const confirmStripePayment = async (req, res) => {
   try {
     const { paymentIntentId, orderId } = req.body;
+
+    if (!paymentIntentId || !orderId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Payment intent ID and order ID are required'
+      });
+    }
 
     // Retrieve payment intent from Stripe
     const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
@@ -89,7 +141,8 @@ const confirmStripePayment = async (req, res) => {
     } else {
       res.status(400).json({
         success: false,
-        message: 'Payment not successful'
+        message: 'Payment not successful',
+        status: paymentIntent.status
       });
     }
 
@@ -108,7 +161,17 @@ const confirmStripePayment = async (req, res) => {
 // @access  Private
 const createPayHerePayment = async (req, res) => {
   try {
+    console.log('PayHere payment request:', req.body);
+    
     const { orderId, amount, currency = 'LKR' } = req.body;
+
+    // Validate PayHere configuration
+    if (!payHereConfig.merchant_id || !payHereConfig.merchant_secret) {
+      return res.status(500).json({
+        success: false,
+        message: 'PayHere merchant configuration is missing'
+      });
+    }
 
     // Find the order
     const order = await Order.findById(orderId);
@@ -127,11 +190,14 @@ const createPayHerePayment = async (req, res) => {
       });
     }
 
+    // Format amount properly
+    const formattedAmount = parseFloat(amount).toFixed(2);
+    
     // Generate PayHere payment data
     const paymentData = {
       merchant_id: payHereConfig.merchant_id,
       order_id: orderId,
-      amount: parseFloat(amount).toFixed(2),
+      amount: formattedAmount,
       currency: currency,
       items: order.items.map(item => item.name).join(', '),
       first_name: order.shippingAddress.firstName,
@@ -156,6 +222,13 @@ const createPayHerePayment = async (req, res) => {
     });
 
     paymentData.hash = hash;
+
+    console.log('PayHere payment data generated:', {
+      merchant_id: paymentData.merchant_id,
+      order_id: paymentData.order_id,
+      amount: paymentData.amount,
+      hash: hash
+    });
 
     // Return payment data for frontend
     res.status(200).json({

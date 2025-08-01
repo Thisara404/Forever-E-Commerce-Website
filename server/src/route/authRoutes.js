@@ -5,7 +5,7 @@ const {
   getUserProfile,
   logoutUser
 } = require('../controller/authController');
-const { auth } = require('../middleware/auth');
+const { auth } = require('../middleware/Auth'); // Fix: Use correct case
 const {
   validateUserRegistration,
   validateUserLogin

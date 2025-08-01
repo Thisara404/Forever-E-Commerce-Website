@@ -9,6 +9,13 @@ const errorHandler = require('./middleware/errorHandler');
 // Load environment variables
 dotenv.config();
 
+// Test Stripe configuration on startup
+if (process.env.STRIPE_SECRET_KEY) {
+  console.log('✅ Stripe configuration loaded');
+} else {
+  console.log('❌ Stripe secret key not found');
+}
+
 // Connect to database
 connectDB();
 
@@ -30,8 +37,10 @@ app.use('/api/', limiter);
 
 // CORS middleware
 app.use(cors({
-  origin: process.env.CLIENT_URL || 'http://localhost:5173',
-  credentials: true
+  origin: 'http://localhost:5173',
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
 // Body parsing middleware
@@ -45,6 +54,7 @@ const cartRoutes = require('./route/cartRoutes');
 const orderRoutes = require('./route/orderRoutes');
 const userRoutes = require('./route/userRoutes');
 const paymentRoutes = require('./route/paymentRoutes');
+const adminRoutes = require('./route/adminRoutes');
 
 // Mount routes
 app.use('/api/auth', authRoutes);
@@ -53,13 +63,15 @@ app.use('/api/cart', cartRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/payments', paymentRoutes);
+app.use('/api/admin', adminRoutes);
 
 // Basic route
 app.get('/', (req, res) => {
   res.json({ 
     message: 'Forever E-Commerce API is running!',
     version: '1.0.0',
-    environment: process.env.NODE_ENV || 'development'
+    environment: process.env.NODE_ENV || 'development',
+    stripe_configured: !!process.env.STRIPE_SECRET_KEY
   });
 });
 

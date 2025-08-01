@@ -22,9 +22,18 @@ const auth = async (req, res, next) => {
       });
     }
 
+    // Check if user is active
+    if (!user.isActive) {
+      return res.status(401).json({ 
+        success: false, 
+        message: 'Account is deactivated' 
+      });
+    }
+
     req.user = user;
     next();
   } catch (error) {
+    console.error('Auth middleware error:', error);
     res.status(401).json({ 
       success: false, 
       message: 'Token is not valid' 
@@ -34,17 +43,25 @@ const auth = async (req, res, next) => {
 
 const adminAuth = async (req, res, next) => {
   try {
-    await auth(req, res, () => {
-      if (req.user && req.user.role === 'admin') {
-        next();
-      } else {
-        res.status(403).json({ 
-          success: false, 
-          message: 'Access denied. Admin only.' 
-        });
-      }
+    // First run the auth middleware
+    await new Promise((resolve, reject) => {
+      auth(req, res, (err) => {
+        if (err) reject(err);
+        else resolve();
+      });
     });
+
+    // Check if user is admin
+    if (req.user && req.user.role === 'admin') {
+      next();
+    } else {
+      res.status(403).json({ 
+        success: false, 
+        message: 'Access denied. Admin only.' 
+      });
+    }
   } catch (error) {
+    console.error('Admin auth error:', error);
     res.status(401).json({ 
       success: false, 
       message: 'Authentication failed' 

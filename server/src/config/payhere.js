@@ -4,19 +4,24 @@ const payHereConfig = {
   merchant_id: process.env.PAYHERE_MERCHANT_ID,
   merchant_secret: process.env.PAYHERE_MERCHANT_SECRET,
   currency: 'LKR',
-  sandbox: process.env.NODE_ENV !== 'production', // Use sandbox for development
+  sandbox: process.env.NODE_ENV !== 'production',
   
-  // URLs
-  return_url: process.env.PAYHERE_RETURN_URL,
-  cancel_url: process.env.PAYHERE_CANCEL_URL,
-  notify_url: process.env.PAYHERE_NOTIFY_URL,
+  // URLs - Fixed to use correct frontend URL
+  return_url: `${process.env.CLIENT_URL}/payment/success`,
+  cancel_url: `${process.env.CLIENT_URL}/payment/cancel`,
+  notify_url: `${process.env.SERVER_URL || 'http://localhost:5000'}/api/payments/payhere/notify`,
   
-  // Sandbox URLs
+  // PayHere URLs
   sandbox_url: 'https://sandbox.payhere.lk/pay/checkout',
   live_url: 'https://www.payhere.lk/pay/checkout'
 };
 
-// Generate PayHere hash
+// Validate configuration
+if (!payHereConfig.merchant_id || !payHereConfig.merchant_secret) {
+  console.error('❌ PayHere merchant credentials not configured');
+}
+
+// Generate PayHere hash - Fixed format
 const generatePayHereHash = (data) => {
   const {
     merchant_id,
@@ -27,8 +32,15 @@ const generatePayHereHash = (data) => {
   } = data;
 
   // PayHere hash format: md5(merchant_id + order_id + amount + currency + merchant_secret)
-  const hashString = `${merchant_id}${order_id}${parseFloat(amount).toFixed(2)}${currency}${merchant_secret}`;
-  return crypto.createHash('md5').update(hashString).digest('hex').toUpperCase();
+  const amountFormatted = parseFloat(amount).toFixed(2);
+  const hashString = `${merchant_id}${order_id}${amountFormatted}${currency}${merchant_secret}`;
+  
+  console.log('Hash string for PayHere:', hashString); // Debug log
+  
+  const hash = crypto.createHash('md5').update(hashString).digest('hex').toUpperCase();
+  console.log('Generated hash:', hash); // Debug log
+  
+  return hash;
 };
 
 // Verify PayHere notification hash
