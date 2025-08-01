@@ -22,6 +22,18 @@ const createStripePaymentIntent = async (req, res) => {
       });
     }
 
+    // **NEW: Check minimum amount for Stripe**
+    const minimumAmountLKR = 200; // Approximately $0.60 USD
+    if (amount < minimumAmountLKR) {
+      return res.status(400).json({
+        success: false,
+        message: `Stripe payments require a minimum amount of LKR ${minimumAmountLKR}. Your order total is LKR ${amount}. Please use PayHere or Cash on Delivery for smaller amounts.`,
+        minAmount: minimumAmountLKR,
+        currentAmount: amount,
+        suggestedMethods: ['payhere', 'cod']
+      });
+    }
+
     if (!orderId) {
       return res.status(400).json({
         success: false,
@@ -76,6 +88,18 @@ const createStripePaymentIntent = async (req, res) => {
 
   } catch (error) {
     console.error('Stripe payment intent error:', error);
+    
+    // Handle specific Stripe errors
+    if (error.type === 'StripeInvalidRequestError' && error.code === 'amount_too_small') {
+      return res.status(400).json({
+        success: false,
+        message: 'Amount is too small for Stripe payments. Please use PayHere or Cash on Delivery for smaller amounts.',
+        error: error.message,
+        suggestedMethods: ['payhere', 'cod'],
+        minAmount: 200
+      });
+    }
+
     res.status(500).json({
       success: false,
       message: 'Failed to create payment intent',

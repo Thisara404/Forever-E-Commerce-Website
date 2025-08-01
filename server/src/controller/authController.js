@@ -7,18 +7,12 @@ const { validationResult } = require('express-validator');
 // @access  Public
 const registerUser = async (req, res) => {
   try {
-<<<<<<< HEAD
     console.log('Register request body:', req.body); // Debug log
     
     // Check for validation errors
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       console.log('Validation errors:', errors.array()); // Debug log
-=======
-    // Check for validation errors
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
->>>>>>> fc516e54968e5384d3ca1dc9de5f4d4c8aa1d316
       return res.status(400).json({
         success: false,
         message: 'Validation failed',
@@ -47,11 +41,7 @@ const registerUser = async (req, res) => {
     // Generate JWT token
     const token = generateToken(user._id);
 
-<<<<<<< HEAD
     const responseData = {
-=======
-    res.status(201).json({
->>>>>>> fc516e54968e5384d3ca1dc9de5f4d4c8aa1d316
       success: true,
       message: 'User registered successfully',
       user: {
@@ -61,14 +51,10 @@ const registerUser = async (req, res) => {
         role: user.role
       },
       token
-<<<<<<< HEAD
     };
 
     console.log('Register response:', responseData); // Debug log
     res.status(201).json(responseData);
-=======
-    });
->>>>>>> fc516e54968e5384d3ca1dc9de5f4d4c8aa1d316
 
   } catch (error) {
     console.error('Registration error:', error);
@@ -84,18 +70,12 @@ const registerUser = async (req, res) => {
 // @access  Public
 const loginUser = async (req, res) => {
   try {
-<<<<<<< HEAD
     console.log('Login request body:', req.body); // Debug log
     
     // Check for validation errors
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       console.log('Validation errors:', errors.array()); // Debug log
-=======
-    // Check for validation errors
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
->>>>>>> fc516e54968e5384d3ca1dc9de5f4d4c8aa1d316
       return res.status(400).json({
         success: false,
         message: 'Validation failed',
@@ -134,11 +114,7 @@ const loginUser = async (req, res) => {
     // Generate JWT token
     const token = generateToken(user._id);
 
-<<<<<<< HEAD
     const responseData = {
-=======
-    res.status(200).json({
->>>>>>> fc516e54968e5384d3ca1dc9de5f4d4c8aa1d316
       success: true,
       message: 'Login successful',
       user: {
@@ -148,14 +124,10 @@ const loginUser = async (req, res) => {
         role: user.role
       },
       token
-<<<<<<< HEAD
     };
 
     console.log('Login response:', responseData); // Debug log
     res.status(200).json(responseData);
-=======
-    });
->>>>>>> fc516e54968e5384d3ca1dc9de5f4d4c8aa1d316
 
   } catch (error) {
     console.error('Login error:', error);
@@ -207,10 +179,7 @@ const getUserProfile = async (req, res) => {
 const logoutUser = async (req, res) => {
   try {
     // Since JWT is stateless, we just send a success response
-<<<<<<< HEAD
-=======
     // In a production app, you might want to blacklist the token
->>>>>>> fc516e54968e5384d3ca1dc9de5f4d4c8aa1d316
     res.status(200).json({
       success: true,
       message: 'Logged out successfully'

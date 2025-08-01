@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 
 const productSchema = new mongoose.Schema({
+  _id: { type: String, required: true },
   name: {
     type: String,
     required: [true, 'Product name is required'],
@@ -48,6 +49,27 @@ const productSchema = new mongoose.Schema({
     type: Number,
     default: 100,
     min: [0, 'Stock quantity cannot be negative']
+  },
+  rating: {
+    type: Number,
+    min: 0,
+    max: 5,
+    default: 0
+  },
+  reviewCount: {
+    type: Number,
+    default: 0
+  },
+  discount: {
+    type: Number,
+    default: 0
+  },
+  tags: [{
+    type: String
+  }],
+  sku: {
+    type: String,
+    unique: true
   }
 }, {
   timestamps: true
