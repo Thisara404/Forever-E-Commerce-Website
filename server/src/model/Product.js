@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
 
 const productSchema = new mongoose.Schema({
-  _id: { type: String, required: true },
+  // Remove custom _id, let MongoDB generate ObjectIds
   name: {
     type: String,
     required: [true, 'Product name is required'],
@@ -70,6 +70,11 @@ const productSchema = new mongoose.Schema({
   sku: {
     type: String,
     unique: true
+  },
+  // Add legacy ID for reference
+  legacyId: {
+    type: String,
+    unique: true
   }
 }, {
   timestamps: true
@@ -80,5 +85,6 @@ productSchema.index({ category: 1, subCategory: 1 });
 productSchema.index({ name: 'text', description: 'text' });
 productSchema.index({ bestseller: -1 });
 productSchema.index({ createdAt: -1 });
+productSchema.index({ legacyId: 1 });
 
 module.exports = mongoose.model('Product', productSchema);
