@@ -7,55 +7,77 @@ const Product = require('../model/Product');
 // @access  Private (Admin only)
 const getDashboardStats = async (req, res) => {
   try {
-    // Get total counts
-    const totalUsers = await User.countDocuments({ role: 'user' });
-    const totalOrders = await Order.countDocuments();
-    const totalProducts = await Product.countDocuments();
+    console.log('📊 Fetching dashboard stats...');
+    console.log('User requesting stats:', req.user.email, 'Role:', req.user.role);
 
-    // Calculate total revenue
-    const revenueResult = await Order.aggregate([
-      { $match: { isPaid: true } },
-      { $group: { _id: null, total: { $sum: '$totalAmount' } } }
-    ]);
-    const totalRevenue = revenueResult[0]?.total || 0;
+    // Get total counts with error handling
+    const totalUsers = await User.countDocuments({ role: 'user' }).catch(() => 0);
+    const totalOrders = await Order.countDocuments().catch(() => 0);
+    const totalProducts = await Product.countDocuments().catch(() => 0);
 
-    // Get recent orders
-    const recentOrders = await Order.find()
-      .populate('userId', 'name email')
-      .sort({ createdAt: -1 })
-      .limit(5);
+    console.log('Counts:', { totalUsers, totalOrders, totalProducts });
 
-    // Get top products (most sold)
-    const topProducts = await Order.aggregate([
-      { $unwind: '$items' },
-      { 
-        $group: { 
-          _id: '$items.productId', 
-          soldCount: { $sum: '$items.quantity' } 
-        } 
-      },
-      { $sort: { soldCount: -1 } },
-      { $limit: 5 },
-      {
-        $lookup: {
-          from: 'products',
-          localField: '_id',
-          foreignField: '_id',
-          as: 'product'
+    // Calculate total revenue with error handling
+    let totalRevenue = 0;
+    try {
+      const revenueResult = await Order.aggregate([
+        { $match: { isPaid: true } },
+        { $group: { _id: null, total: { $sum: '$totalAmount' } } }
+      ]);
+      totalRevenue = revenueResult[0]?.total || 0;
+    } catch (error) {
+      console.error('Revenue calculation error:', error);
+    }
+
+    // Get recent orders with error handling
+    let recentOrders = [];
+    try {
+      recentOrders = await Order.find()
+        .populate('userId', 'name email')
+        .sort({ createdAt: -1 })
+        .limit(5)
+        .lean();
+    } catch (error) {
+      console.error('Recent orders error:', error);
+    }
+
+    // Get top products with error handling
+    let topProducts = [];
+    try {
+      topProducts = await Order.aggregate([
+        { $match: { isPaid: true } },
+        { $unwind: '$items' },
+        { 
+          $group: { 
+            _id: '$items.productId', 
+            soldCount: { $sum: '$items.quantity' } 
+          } 
+        },
+        { $sort: { soldCount: -1 } },
+        { $limit: 5 },
+        {
+          $lookup: {
+            from: 'products',
+            localField: '_id',
+            foreignField: '_id',
+            as: 'product'
+          }
+        },
+        { $unwind: '$product' },
+        {
+          $project: {
+            _id: '$product._id',
+            name: '$product.name',
+            image: '$product.image',
+            soldCount: 1
+          }
         }
-      },
-      { $unwind: '$product' },
-      {
-        $project: {
-          _id: '$product._id',
-          name: '$product.name',
-          image: '$product.image',
-          soldCount: 1
-        }
-      }
-    ]);
+      ]);
+    } catch (error) {
+      console.error('Top products error:', error);
+    }
 
-    res.status(200).json({
+    const responseData = {
       success: true,
       data: {
         totalUsers,
@@ -65,13 +87,17 @@ const getDashboardStats = async (req, res) => {
         recentOrders,
         topProducts
       }
-    });
+    };
+
+    console.log('✅ Dashboard stats response:', responseData);
+    res.status(200).json(responseData);
 
   } catch (error) {
-    console.error('Get dashboard stats error:', error);
+    console.error('❌ Get dashboard stats error:', error);
     res.status(500).json({
       success: false,
-      message: 'Server error while fetching dashboard stats'
+      message: 'Server error while fetching dashboard stats',
+      error: error.message
     });
   }
 };
@@ -81,6 +107,7 @@ const getDashboardStats = async (req, res) => {
 // @access  Private (Admin only)
 const getAllUsers = async (req, res) => {
   try {
+    console.log('👥 Fetching all users...');
     const { page = 1, limit = 10, search = '' } = req.query;
 
     // Build filter
@@ -106,6 +133,8 @@ const getAllUsers = async (req, res) => {
     const totalUsers = await User.countDocuments(filter);
     const totalPages = Math.ceil(totalUsers / limit);
 
+    console.log(`✅ Found ${users.length} users`);
+
     res.status(200).json({
       success: true,
       data: {
@@ -121,10 +150,11 @@ const getAllUsers = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Get all users error:', error);
+    console.error('❌ Get all users error:', error);
     res.status(500).json({
       success: false,
-      message: 'Server error while fetching users'
+      message: 'Server error while fetching users',
+      error: error.message
     });
   }
 };
@@ -136,6 +166,8 @@ const updateUserStatus = async (req, res) => {
   try {
     const { userId } = req.params;
     const { isActive } = req.body;
+
+    console.log(`🔄 Updating user ${userId} status to ${isActive}`);
 
     const user = await User.findByIdAndUpdate(
       userId,
@@ -157,10 +189,11 @@ const updateUserStatus = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Update user status error:', error);
+    console.error('❌ Update user status error:', error);
     res.status(500).json({
       success: false,
-      message: 'Server error while updating user status'
+      message: 'Server error while updating user status',
+      error: error.message
     });
   }
 };
@@ -170,6 +203,7 @@ const updateUserStatus = async (req, res) => {
 // @access  Private (Admin only)
 const getAnalytics = async (req, res) => {
   try {
+    console.log('📈 Fetching analytics...');
     const { range = '30d' } = req.query;
     
     // Calculate date range
@@ -177,52 +211,61 @@ const getAnalytics = async (req, res) => {
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - days);
 
-    // Sales analytics
-    const salesData = await Order.aggregate([
-      {
-        $match: {
-          createdAt: { $gte: startDate },
-          isPaid: true
-        }
-      },
-      {
-        $group: {
-          _id: {
-            $dateToString: { format: '%Y-%m-%d', date: '$createdAt' }
-          },
-          revenue: { $sum: '$totalAmount' },
-          orders: { $sum: 1 }
-        }
-      },
-      { $sort: { _id: 1 } }
-    ]);
+    let salesData = [];
+    let categoryData = [];
 
-    // Category analytics
-    const categoryData = await Order.aggregate([
-      {
-        $match: {
-          createdAt: { $gte: startDate },
-          isPaid: true
+    try {
+      // Sales analytics
+      salesData = await Order.aggregate([
+        {
+          $match: {
+            createdAt: { $gte: startDate },
+            isPaid: true
+          }
+        },
+        {
+          $group: {
+            _id: {
+              $dateToString: { format: '%Y-%m-%d', date: '$createdAt' }
+            },
+            revenue: { $sum: '$totalAmount' },
+            orders: { $sum: 1 }
+          }
+        },
+        { $sort: { _id: 1 } }
+      ]);
+
+      // Category analytics
+      categoryData = await Order.aggregate([
+        {
+          $match: {
+            createdAt: { $gte: startDate },
+            isPaid: true
+          }
+        },
+        { $unwind: '$items' },
+        {
+          $lookup: {
+            from: 'products',
+            localField: 'items.productId',
+            foreignField: '_id',
+            as: 'product'
+          }
+        },
+        { $unwind: '$product' },
+        {
+          $group: {
+            _id: '$product.category',
+            revenue: { $sum: { $multiply: ['$items.quantity', '$items.price'] } },
+            quantity: { $sum: '$items.quantity' }
+          }
         }
-      },
-      { $unwind: '$items' },
-      {
-        $lookup: {
-          from: 'products',
-          localField: 'items.productId',
-          foreignField: '_id',
-          as: 'product'
-        }
-      },
-      { $unwind: '$product' },
-      {
-        $group: {
-          _id: '$product.category',
-          revenue: { $sum: { $multiply: ['$items.quantity', '$items.price'] } },
-          quantity: { $sum: '$items.quantity' }
-        }
-      }
-    ]);
+      ]);
+    } catch (error) {
+      console.error('Analytics aggregation error:', error);
+    }
+
+    console.log(`✅ Analytics: ${salesData.length} sales records, ${categoryData.length} categories`);
 
     res.status(200).json({
       success: true,
@@ -234,10 +277,11 @@ const getAnalytics = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Get analytics error:', error);
+    console.error('❌ Get analytics error:', error);
     res.status(500).json({
       success: false,
-      message: 'Server error while fetching analytics'
+      message: 'Server error while fetching analytics',
+      error: error.message
     });
   }
 };

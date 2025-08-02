@@ -1,18 +1,8 @@
 const multer = require('multer');
-const { CloudinaryStorage } = require('multer-storage-cloudinary');
-const cloudinary = require('../config/cloudinary');
+const { v4: uuidv4 } = require('uuid');
 
-// Configure Cloudinary storage
-const storage = new CloudinaryStorage({
-  cloudinary: cloudinary,
-  params: {
-    folder: 'forever-ecommerce/products',
-    allowed_formats: ['jpg', 'jpeg', 'png', 'webp'],
-    transformation: [
-      { width: 800, height: 800, crop: 'fill', quality: 'auto' }
-    ]
-  }
-});
+// Configure multer for memory storage (we'll upload to R2 manually)
+const storage = multer.memoryStorage();
 
 // Configure multer
 const upload = multer({

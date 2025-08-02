@@ -7,14 +7,18 @@
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
     "test": "echo \"Error: no test specified\" && exit 1",
-    "seed": "node src/utils/seedWithPlaceholders.js",
-    "seed:placeholders": "node src/utils/seedWithPlaceholders.js",
+    "test-r2": "node src/utils/testR2Credentials.js",
     "upload-images": "node src/utils/uploadImagesToR2.js",
-    "seed:dev": "NODE_ENV=development node src/utils/seedWithPlaceholders.js"
+    "seed": "node src/utils/seedWithR2Images.js",
+    "seed:placeholders": "node src/utils/seedWithPlaceholders.js",
+    "clear-carts": "node src/utils/clearCartData.js",
+    "clear-invalid-carts": "node src/utils/clearInvalidCartData.js",
+    "complete-reset": "node src/utils/completeReset.js",
+    "full-setup": "npm run clear-invalid-carts && npm run seed"
   },
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.465.0",
-    "@aws-sdk/s3-request-presigner": "^3.465.0",
+    "@aws-sdk/client-s3": "^3.859.0",
+    "@aws-sdk/s3-request-presigner": "^3.859.0",
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",

@@ -7,9 +7,13 @@ class AdminApiService {
 
   setToken(token) {
     this.token = token;
+    localStorage.setItem('token', token);
   }
 
   async fetchWithAuth(url, options = {}) {
+    // Always get fresh token
+    this.token = localStorage.getItem('token');
+    
     const config = {
       headers: {
         ...(this.token && { Authorization: `Bearer ${this.token}` }),
@@ -23,18 +27,41 @@ class AdminApiService {
       config.headers['Content-Type'] = 'application/json';
     }
 
-    const response = await fetch(`${API_BASE_URL}${url}`, config);
-    
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.message || 'API request failed');
-    }
+    console.log('🔗 Admin API request:', `${API_BASE_URL}${url}`);
+    console.log('🔑 Token available:', this.token ? 'Yes' : 'No');
+    console.log('📤 Request config:', config);
 
-    return response.json();
+    try {
+      const response = await fetch(`${API_BASE_URL}${url}`, config);
+      
+      console.log('📥 Response status:', response.status);
+      console.log('📥 Response headers:', Object.fromEntries(response.headers.entries()));
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('❌ API Error Response:', errorText);
+        
+        try {
+          const errorJson = JSON.parse(errorText);
+          throw new Error(errorJson.message || 'API request failed');
+        } catch {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+      }
+
+      const data = await response.json();
+      console.log('✅ API Response Data:', data);
+      return data;
+      
+    } catch (error) {
+      console.error('❌ Fetch Error:', error);
+      throw error;
+    }
   }
 
   // Dashboard APIs
   async getDashboardStats() {
+    console.log('📊 Calling getDashboardStats...');
     return this.fetchWithAuth('/admin/dashboard/stats');
   }
 
@@ -47,14 +74,14 @@ class AdminApiService {
   async createProduct(productData) {
     return this.fetchWithAuth('/products', {
       method: 'POST',
-      body: productData, // FormData
+      body: productData,
     });
   }
 
   async updateProduct(productId, productData) {
     return this.fetchWithAuth(`/products/${productId}`, {
       method: 'PUT',
-      body: productData, // FormData
+      body: productData,
     });
   }
 

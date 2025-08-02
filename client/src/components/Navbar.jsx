@@ -40,10 +40,10 @@ const NavBar = () => {
           <p>CONTACT</p>
           <hr className='w-2/4 border-none h-[1.5px] bg-gray-700 hidden'/>
         </NavLink>
+        {/* ADMIN ACCESS - Show only for admin users */}
         {user && user.role === 'admin' && (
-          <NavLink to='/admin' className='flex flex-col items-center gap-1'>
-            <p>ADMIN</p>
-            <hr className='w-2/4 border-none h-[1.5px] bg-gray-700 hidden'/>
+          <NavLink to='/admin' className='flex flex-col items-center gap-1 bg-gradient-to-r from-blue-500 to-purple-600 text-white px-3 py-1 rounded-md transition-all hover:from-blue-600 hover:to-purple-700'>
+            <p className="text-sm font-semibold">⚡ ADMIN</p>
           </NavLink>
         )}
       </ul>
@@ -72,6 +72,12 @@ const NavBar = () => {
                 <Link to='/orders' className='cursor-pointer hover:text-black'>
                   Orders
                 </Link>
+                {/* ADMIN PANEL ACCESS in dropdown */}
+                {user && user.role === 'admin' && (
+                  <Link to='/admin' className='cursor-pointer hover:text-black text-blue-600 font-semibold border-t pt-2'>
+                    🔧 Admin Panel
+                  </Link>
+                )}
                 <p onClick={handleLogout} className='cursor-pointer hover:text-black'>
                   Logout
                 </p>
@@ -110,8 +116,11 @@ const NavBar = () => {
           {token ? (
             <>
               <NavLink onClick={() => setVisible(false)} className='py-2 pl-6 border' to='/orders'>ORDERS</NavLink>
+              {/* ADMIN ACCESS in mobile menu */}
               {user && user.role === 'admin' && (
-                <NavLink onClick={() => setVisible(false)} className='py-2 pl-6 border' to='/admin'>ADMIN</NavLink>
+                <NavLink onClick={() => setVisible(false)} className='py-2 pl-6 border bg-blue-50 text-blue-600 font-semibold' to='/admin'>
+                  🔧 ADMIN PANEL
+                </NavLink>
               )}
               <div onClick={() => { setVisible(false); handleLogout(); }} className='py-2 pl-6 border cursor-pointer'>LOGOUT</div>
             </>
