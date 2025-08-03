@@ -15,7 +15,7 @@ const Dashboard = () => {
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    console.log('🎯 Dashboard useEffect triggered');
+    console.log('🛠️ [DEBUG] Dashboard useEffect triggered');
     fetchDashboardStats();
   }, []);
 
@@ -23,7 +23,7 @@ const Dashboard = () => {
     try {
       setLoading(true);
       setError(null);
-      console.log('🔄 Starting dashboard stats fetch...');
+      console.log('🛠️ [DEBUG] Fetching dashboard stats from API...');
       
       // Check if we have a token first
       const token = localStorage.getItem('token');
@@ -32,7 +32,7 @@ const Dashboard = () => {
       }
       
       const response = await AdminApiService.getDashboardStats();
-      console.log('📊 Dashboard API response:', response);
+      console.log('🛠️ [DEBUG] Dashboard API response:', response);
       
       if (response && response.success && response.data) {
         console.log('✅ Setting stats data:', response.data);
@@ -42,7 +42,7 @@ const Dashboard = () => {
         throw new Error('Invalid response structure');
       }
     } catch (error) {
-      console.error('❌ Dashboard fetch error:', error);
+      console.error('🛠️ [DEBUG] Dashboard fetch error:', error);
       setError(error.message);
       toast.error(`Failed to load dashboard: ${error.message}`);
     } finally {

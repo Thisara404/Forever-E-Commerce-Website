@@ -77,6 +77,15 @@ const getDashboardStats = async (req, res) => {
       console.error('Top products error:', error);
     }
 
+    console.log('🛠️ [DEBUG] Dashboard stats response:', {
+      totalUsers,
+      totalOrders,
+      totalProducts,
+      totalRevenue,
+      recentOrdersCount: recentOrders.length,
+      topProductsCount: topProducts.length
+    });
+
     const responseData = {
       success: true,
       data: {
@@ -93,7 +102,7 @@ const getDashboardStats = async (req, res) => {
     res.status(200).json(responseData);
 
   } catch (error) {
-    console.error('❌ Get dashboard stats error:', error);
+    console.error('🛠️ [DEBUG] Dashboard stats error:', error);
     res.status(500).json({
       success: false,
       message: 'Server error while fetching dashboard stats',

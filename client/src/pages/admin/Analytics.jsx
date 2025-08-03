@@ -32,7 +32,7 @@ const Analytics = () => {
         <select
           value={timeRange}
           onChange={(e) => setTimeRange(e.target.value)}
-          className="border border-gray-300 rounded-lg px-3 py-2"
+          className="border border-gray-300 rounded-lg px-3 py-2 bg-gray-50"
         >
           <option value="7d">Last 7 days</option>
           <option value="30d">Last 30 days</option>
@@ -42,22 +42,22 @@ const Analytics = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Sales Chart */}
-        <div className="bg-white p-6 rounded-lg shadow">
-          <h3 className="text-xl font-semibold mb-4">Sales Over Time</h3>
-          <div className="h-64 flex items-center justify-center text-gray-500">
+        <div className="bg-gradient-to-br from-blue-50 to-indigo-100 p-6 rounded-lg shadow-lg border border-blue-200">
+          <h3 className="text-xl font-semibold mb-4 text-indigo-800">Sales Over Time</h3>
+          <div className="h-64 flex items-center justify-center text-indigo-600">
             {/* Add chart library here (Chart.js, Recharts, etc.) */}
             Sales chart will go here
           </div>
         </div>
 
         {/* Category Performance */}
-        <div className="bg-white p-6 rounded-lg shadow">
-          <h3 className="text-xl font-semibold mb-4">Category Performance</h3>
+        <div className="bg-gradient-to-br from-green-50 to-emerald-100 p-6 rounded-lg shadow-lg border border-green-200">
+          <h3 className="text-xl font-semibold mb-4 text-emerald-800">Category Performance</h3>
           <div className="space-y-3">
             {analytics.categoryData.map((category, index) => (
-              <div key={index} className="flex justify-between items-center">
-                <span className="font-medium">{category._id}</span>
-                <span className="text-green-600">LKR {category.revenue.toLocaleString()}</span>
+              <div key={index} className="flex justify-between items-center p-3 bg-emerald-50 rounded-lg border border-emerald-200">
+                <span className="font-medium text-emerald-700">{category._id}</span>
+                <span className="text-emerald-600 font-semibold">LKR {category.revenue.toLocaleString()}</span>
               </div>
             ))}
           </div>
