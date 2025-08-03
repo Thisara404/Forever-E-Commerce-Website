@@ -10,6 +10,15 @@ const getDashboardStats = async (req, res) => {
     console.log('📊 Fetching dashboard stats...');
     console.log('User requesting stats:', req.user.email, 'Role:', req.user.role);
 
+    // Add more detailed error handling
+    if (!req.user || req.user.role !== 'admin') {
+      console.error('❌ Unauthorized access attempt');
+      return res.status(403).json({
+        success: false,
+        message: 'Unauthorized access'
+      });
+    }
+
     // Get total counts with error handling
     const totalUsers = await User.countDocuments({ role: 'user' }).catch(() => 0);
     const totalOrders = await Order.countDocuments().catch(() => 0);
@@ -102,10 +111,10 @@ const getDashboardStats = async (req, res) => {
     res.status(200).json(responseData);
 
   } catch (error) {
-    console.error('🛠️ [DEBUG] Dashboard stats error:', error);
+    console.error('❌ Dashboard stats error:', error);
     res.status(500).json({
       success: false,
-      message: 'Server error while fetching dashboard stats',
+      message: 'Failed to fetch dashboard stats',
       error: error.message
     });
   }

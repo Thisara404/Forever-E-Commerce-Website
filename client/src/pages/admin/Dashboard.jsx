@@ -2,6 +2,13 @@ import React, { useState, useEffect } from 'react';
 import AdminApiService from '../../services/adminApi';
 import { toast } from 'react-toastify';
 
+const LoadingState = () => (
+  <div className="flex justify-center items-center h-64">
+    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900"></div>
+    <span className="ml-3 text-gray-600">Loading...</span>
+  </div>
+);
+
 const Dashboard = () => {
   const [stats, setStats] = useState({
     totalOrders: 0,
@@ -54,12 +61,7 @@ const Dashboard = () => {
   console.log('🔍 Dashboard render state:', { loading, error, stats });
 
   if (loading) {
-    return (
-      <div className="flex justify-center items-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900"></div>
-        <span className="ml-3 text-gray-600">Loading dashboard...</span>
-      </div>
-    );
+    return <LoadingState />;
   }
 
   if (error) {
@@ -83,12 +85,12 @@ const Dashboard = () => {
       <h2 className="text-3xl font-bold text-gray-800 mb-6">Dashboard Overview</h2>
       
       {/* Debug Info */}
-      <div className="bg-blue-50 p-4 rounded-lg mb-6">
+      {/* <div className="bg-blue-50 p-4 rounded-lg mb-6">
         <h4 className="font-semibold text-blue-800">Debug Info:</h4>
         <pre className="text-xs text-blue-700 mt-2">
           {JSON.stringify(stats, null, 2)}
         </pre>
-      </div>
+      </div> */}
       
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">

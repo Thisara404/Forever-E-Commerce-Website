@@ -11,50 +11,45 @@ class AdminApiService {
   }
 
   async fetchWithAuth(url, options = {}) {
-    // Always get fresh token
-    this.token = localStorage.getItem('token');
-    
-    const config = {
-      headers: {
-        ...(this.token && { Authorization: `Bearer ${this.token}` }),
-        ...options.headers,
-      },
-      ...options,
-    };
-
-    // Don't set Content-Type for FormData
-    if (!(options.body instanceof FormData)) {
-      config.headers['Content-Type'] = 'application/json';
-    }
-
-    console.log('🔗 Admin API request:', `${API_BASE_URL}${url}`);
-    console.log('🔑 Token available:', this.token ? 'Yes' : 'No');
-    console.log('📤 Request config:', config);
-
     try {
+      // Always get fresh token
+      this.token = localStorage.getItem('token');
+      
+      const config = {
+        headers: {
+          ...(this.token && { Authorization: `Bearer ${this.token}` }),
+          ...options.headers,
+        },
+        ...options,
+      };
+
+      // Add debug logging
+      console.log('🔍 Admin API Request:', {
+        url: `${API_BASE_URL}${url}`,
+        hasToken: !!this.token,
+        config
+      });
+
       const response = await fetch(`${API_BASE_URL}${url}`, config);
       
-      console.log('📥 Response status:', response.status);
-      console.log('📥 Response headers:', Object.fromEntries(response.headers.entries()));
-      
+      // Add response logging
+      console.log('📥 Admin API Response:', {
+        status: response.status,
+        ok: response.ok,
+        headers: Object.fromEntries(response.headers)
+      });
+
       if (!response.ok) {
-        const errorText = await response.text();
-        console.error('❌ API Error Response:', errorText);
-        
-        try {
-          const errorJson = JSON.parse(errorText);
-          throw new Error(errorJson.message || 'API request failed');
-        } catch {
-          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-        }
+        const error = await response.json();
+        console.error('❌ Admin API Error:', error);
+        throw new Error(error.message || 'API request failed');
       }
 
       const data = await response.json();
-      console.log('✅ API Response Data:', data);
+      console.log('✅ Admin API Success:', data);
       return data;
-      
     } catch (error) {
-      console.error('❌ Fetch Error:', error);
+      console.error('❌ Admin API Fetch Error:', error);
       throw error;
     }
   }

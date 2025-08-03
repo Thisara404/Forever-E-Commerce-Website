@@ -14,23 +14,23 @@ import PaymentCancel from './pages/PaymentCancel'
 import NavBar from './components/NavBar'
 import Footer from './components/Footer'
 import SearchBar from './components/SearchBar'
-import AdminFloatingButton from './components/AdminFloatingButton' // Add this
+import AdminFloatingButton from './components/AdminFloatingButton'
 import { ToastContainer } from 'react-toastify'
 import 'react-toastify/dist/ReactToastify.css'
 
 // Admin Components
-import AdminLayout from './pages/admin/AdminLayout'
-import Dashboard from './pages/admin/Dashboard'
-import ProductManagement from './pages/admin/ProductManagement'
-import OrderManagement from './pages/admin/OrderManagement'
-import UserManagement from './pages/admin/UserManagement'
-import Analytics from './pages/admin/Analytics'
+import Dashboard from './pages/admin/Dashboard';
+import ProductManagement from './pages/admin/ProductManagement';
+import OrderManagement from './pages/admin/OrderManagement';
+import UserManagement from './pages/admin/UserManagement';
+import Analytics from './pages/admin/Analytics';
+import AdminLayout from './pages/admin/AdminLayout';
 
 const App = () => {
   return (
     <div className='px-4 sm:px-[5vw] md:px-[7vw] lg:px-[9vw]'>
       <ToastContainer />
-      <AdminFloatingButton /> {/* Add this */}
+      <AdminFloatingButton />
       <Routes>
         {/* Public Routes */}
         <Route path="/*" element={
@@ -54,18 +54,14 @@ const App = () => {
           </>
         } />
 
-        {/* Admin Routes */}
-        <Route path="/admin/*" element={
-          <AdminLayout>
-            <Routes>
-              <Route index element={<Dashboard />} />
-              <Route path="products" element={<ProductManagement />} />
-              <Route path="orders" element={<OrderManagement />} />
-              <Route path="users" element={<UserManagement />} />
-              <Route path="analytics" element={<Analytics />} />
-            </Routes>
-          </AdminLayout>
-        } />
+        {/* Admin Routes - FIXED */}
+        <Route path="/admin" element={<AdminLayout />}>
+          <Route index element={<Dashboard />} />
+          <Route path="products" element={<ProductManagement />} />
+          <Route path="orders" element={<OrderManagement />} />
+          <Route path="users" element={<UserManagement />} />
+          <Route path="analytics" element={<Analytics />} />
+        </Route>
       </Routes>
     </div>
   )

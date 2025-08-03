@@ -1,11 +1,13 @@
-import React, { useContext, useEffect } from 'react';
+import React, { useContext, useEffect, useState } from 'react';
 import { Outlet, Navigate, Link, useLocation } from 'react-router-dom';
 import { ShopContext } from '../../context/ShopContext';
 import { assets } from '../../assets/assets';
+import { ErrorBoundary } from 'react-error-boundary';
 
 const AdminLayout = () => {
   const { user, loading, token } = useContext(ShopContext);
   const location = useLocation();
+  const [error, setError] = useState(null);
 
   console.log('🔍 AdminLayout state:', { 
     loading, 
@@ -129,7 +131,26 @@ const AdminLayout = () => {
         </header>
 
         <main className="p-6">
-          <Outlet />
+          {error ? (
+            <div className="bg-red-50 border border-red-200 p-4 rounded-lg">
+              <h3 className="text-red-800 font-semibold">Error Loading Content</h3>
+              <p className="text-red-600">{error}</p>
+              <button 
+                onClick={() => setError(null)}
+                className="mt-2 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
+              >
+                Try Again
+              </button>
+            </div>
+          ) : (
+            <ErrorBoundary 
+              FallbackComponent={({error}) => (
+                <div className="text-red-600">Error: {error.message}</div>
+              )}
+            >
+              <Outlet />
+            </ErrorBoundary>
+          )}
         </main>
       </div>
     </div>
