@@ -69,7 +69,17 @@ class ApiService {
 
   // Product APIs
   async getProducts(params = {}) {
-    const queryString = new URLSearchParams(params).toString();
+    // Clean up params - remove empty values
+    const cleanParams = Object.entries(params).reduce((acc, [key, value]) => {
+      if (value !== null && value !== undefined && value !== '') {
+        acc[key] = value;
+      }
+      return acc;
+    }, {});
+
+    const queryString = new URLSearchParams(cleanParams).toString();
+    console.log('🔍 API Request:', `${API_BASE_URL}/products${queryString ? `?${queryString}` : ''}`);
+    
     return this.fetchWithAuth(`/products${queryString ? `?${queryString}` : ''}`);
   }
 

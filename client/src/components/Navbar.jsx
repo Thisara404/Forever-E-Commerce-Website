@@ -1,11 +1,12 @@
 import { assets } from '../assets/assets';
-import { Link, NavLink } from 'react-router-dom';
+import { Link, NavLink, useLocation } from 'react-router-dom';
 import React, { useContext, useState } from 'react';
 import { ShopContext } from '../context/ShopContext';
 
 const NavBar = () => {
   const [visible, setVisible] = useState(false);
   const { setShowSearch, getCartCount, user, token, logout, navigate } = useContext(ShopContext);
+  const location = useLocation();
 
   const handleLogout = () => {
     logout();
@@ -16,6 +17,19 @@ const NavBar = () => {
       navigate('/orders');
     } else {
       navigate('/login');
+    }
+  };
+
+  const handleSearchClick = () => {
+    // If not on collection page, navigate there first, then show search
+    if (location.pathname !== '/collection') {
+      navigate('/collection');
+      // Small delay to ensure navigation completes before showing search
+      setTimeout(() => {
+        setShowSearch(true);
+      }, 100);
+    } else {
+      setShowSearch(true);
     }
   };
 
@@ -50,10 +64,11 @@ const NavBar = () => {
 
       <div className='flex items-center gap-6'>
         <img 
-          onClick={() => setShowSearch(true)} 
+          onClick={handleSearchClick} 
           src={assets.search_icon} 
           alt="search" 
-          className='w-5 cursor-pointer'
+          className='w-5 cursor-pointer hover:opacity-70 transition-opacity'
+          title="Search products"
         />
 
         <div className='group relative'>
