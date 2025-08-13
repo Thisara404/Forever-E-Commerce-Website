@@ -17,6 +17,7 @@ import SearchBar from './components/SearchBar'
 import AdminFloatingButton from './components/AdminFloatingButton'
 import { ToastContainer } from 'react-toastify'
 import 'react-toastify/dist/ReactToastify.css'
+import ServerStatus from './components/ServerStatus'
 
 // Admin Components
 import Dashboard from './pages/admin/Dashboard';
@@ -29,6 +30,7 @@ import AdminLayout from './pages/admin/AdminLayout';
 const App = () => {
   return (
     <div className='px-4 sm:px-[5vw] md:px-[7vw] lg:px-[9vw]'>
+      <ServerStatus />
       <ToastContainer />
       <AdminFloatingButton />
       <Routes>

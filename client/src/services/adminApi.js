@@ -23,30 +23,41 @@ class AdminApiService {
         ...options,
       };
 
-      // Add debug logging
+      // Don't set Content-Type for FormData - browser will set it with boundary
+      if (options.body instanceof FormData) {
+        delete config.headers['Content-Type'];
+      } else if (!config.headers['Content-Type']) {
+        config.headers['Content-Type'] = 'application/json';
+      }
+
       console.log('🔍 Admin API Request:', {
         url: `${API_BASE_URL}${url}`,
         hasToken: !!this.token,
-        config
+        method: options.method || 'GET',
+        bodyType: options.body instanceof FormData ? 'FormData' : typeof options.body
       });
 
       const response = await fetch(`${API_BASE_URL}${url}`, config);
       
-      // Add response logging
       console.log('📥 Admin API Response:', {
         status: response.status,
         ok: response.ok,
-        headers: Object.fromEntries(response.headers)
+        url: response.url
       });
 
       if (!response.ok) {
-        const error = await response.json();
-        console.error('❌ Admin API Error:', error);
-        throw new Error(error.message || 'API request failed');
+        let errorMessage = 'API request failed';
+        try {
+          const error = await response.json();
+          errorMessage = error.message || errorMessage;
+        } catch (parseError) {
+          errorMessage = response.statusText || errorMessage;
+        }
+        throw new Error(errorMessage);
       }
 
       const data = await response.json();
-      console.log('✅ Admin API Success:', data);
+      console.log('✅ Admin API Success');
       return data;
     } catch (error) {
       console.error('❌ Admin API Fetch Error:', error);
@@ -60,28 +71,28 @@ class AdminApiService {
     return this.fetchWithAuth('/admin/dashboard/stats');
   }
 
-  // Product Management APIs
+  // Product Management APIs - Using admin routes
   async getProducts(params = {}) {
     const queryString = new URLSearchParams(params).toString();
-    return this.fetchWithAuth(`/products${queryString ? `?${queryString}` : ''}`);
+    return this.fetchWithAuth(`/admin/products${queryString ? `?${queryString}` : ''}`);
   }
 
   async createProduct(productData) {
-    return this.fetchWithAuth('/products', {
+    return this.fetchWithAuth('/admin/products', {
       method: 'POST',
-      body: productData,
+      body: productData, // FormData object
     });
   }
 
   async updateProduct(productId, productData) {
-    return this.fetchWithAuth(`/products/${productId}`, {
+    return this.fetchWithAuth(`/admin/products/${productId}`, {
       method: 'PUT',
-      body: productData,
+      body: productData, // FormData object
     });
   }
 
   async deleteProduct(productId) {
-    return this.fetchWithAuth(`/products/${productId}`, {
+    return this.fetchWithAuth(`/admin/products/${productId}`, {
       method: 'DELETE',
     });
   }
@@ -95,6 +106,9 @@ class AdminApiService {
   async updateOrderStatus(orderId, status) {
     return this.fetchWithAuth(`/orders/${orderId}/status`, {
       method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
       body: JSON.stringify({ orderStatus: status }),
     });
   }
@@ -108,6 +122,9 @@ class AdminApiService {
   async updateUserStatus(userId, isActive) {
     return this.fetchWithAuth(`/admin/users/${userId}/status`, {
       method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
       body: JSON.stringify({ isActive }),
     });
   }

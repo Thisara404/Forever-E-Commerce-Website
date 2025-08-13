@@ -7,24 +7,53 @@ const ProductManagement = () => {
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
+  const [refreshTrigger, setRefreshTrigger] = useState(0); // Add this
+  const [pagination, setPagination] = useState({
+    currentPage: 1,
+    totalPages: 1,
+    totalProducts: 0
+  });
   const [filters, setFilters] = useState({
     category: '',
     search: '',
     page: 1,
-    limit: 10
+    limit: 20  // Keep 20 per page but add pagination
   });
 
   useEffect(() => {
     fetchProducts();
-  }, [filters]);
+  }, [filters, refreshTrigger]); // Add refreshTrigger here
 
   const fetchProducts = async () => {
     try {
       setLoading(true);
+      console.log('🔄 Fetching products with filters:', filters);
       const response = await AdminApiService.getProducts(filters);
-      setProducts(response.data.products);
+      console.log('✅ Products response:', response);
+      
+      if (response.success && response.data) {
+        // Handle both paginated and non-paginated responses
+        const productList = response.data.products || response.data;
+        const paginationData = response.data.pagination || {};
+        
+        setProducts(Array.isArray(productList) ? productList : []);
+        setPagination({
+          currentPage: paginationData.currentPage || 1,
+          totalPages: paginationData.totalPages || 1,
+          totalProducts: paginationData.totalProducts || productList.length
+        });
+        
+        console.log(`📦 Loaded ${productList.length} products (${paginationData.totalProducts || productList.length} total)`);
+      } else {
+        console.warn('⚠️ Unexpected response structure:', response);
+        setProducts([]);
+        setPagination({ currentPage: 1, totalPages: 1, totalProducts: 0 });
+      }
     } catch (error) {
-      toast.error('Failed to fetch products');
+      console.error('❌ Failed to fetch products:', error);
+      toast.error(`Failed to fetch products: ${error.message}`);
+      setProducts([]);
+      setPagination({ currentPage: 1, totalPages: 1, totalProducts: 0 });
     } finally {
       setLoading(false);
     }
@@ -33,16 +62,22 @@ const ProductManagement = () => {
   const handleDeleteProduct = async (productId) => {
     if (window.confirm('Are you sure you want to delete this product?')) {
       try {
+        console.log('🗑️ Deleting product:', productId);
         await AdminApiService.deleteProduct(productId);
         toast.success('Product deleted successfully');
-        fetchProducts();
+        
+        // Force refresh after deletion
+        forceRefresh();
+        
       } catch (error) {
-        toast.error('Failed to delete product');
+        console.error('❌ Delete error:', error);
+        toast.error(`Failed to delete product: ${error.message}`);
       }
     }
   };
 
   const handleEditProduct = (product) => {
+    console.log('✏️ Editing product:', product);
     setEditingProduct(product);
     setShowModal(true);
   };
@@ -52,16 +87,57 @@ const ProductManagement = () => {
     setShowModal(true);
   };
 
+  // Pagination handlers
+  const handlePageChange = (newPage) => {
+    setFilters(prev => ({ ...prev, page: newPage }));
+  };
+
+  const handlePrevPage = () => {
+    if (pagination.currentPage > 1) {
+      handlePageChange(pagination.currentPage - 1);
+    }
+  };
+
+  const handleNextPage = () => {
+    if (pagination.currentPage < pagination.totalPages) {
+      handlePageChange(pagination.currentPage + 1);
+    }
+  };
+
+  // Force refresh function
+  const forceRefresh = () => {
+    console.log('🔄 Forcing data refresh...');
+    setRefreshTrigger(prev => prev + 1);
+  };
+
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900"></div>
+        <span className="ml-3 text-gray-600">Loading products...</span>
+      </div>
+    );
+  }
+
   return (
     <div>
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-3xl font-bold text-gray-800">Product Management</h2>
-        <button
-          onClick={handleAddProduct}
-          className="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition-colors"
-        >
-          Add New Product
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={forceRefresh}
+            className="bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600 transition-colors"
+            title="Refresh Data"
+          >
+            🔄 Refresh
+          </button>
+          <button
+            onClick={handleAddProduct}
+            className="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition-colors"
+          >
+            Add New Product
+          </button>
+        </div>
       </div>
 
       {/* Filters */}
@@ -91,87 +167,192 @@ const ProductManagement = () => {
             Apply Filters
           </button>
         </div>
+        
+        {/* Products count and pagination info */}
+        <div className="mt-2 flex justify-between items-center text-sm text-gray-600">
+          <div>
+            Total products: <strong>{pagination.totalProducts}</strong> | 
+            Showing: <strong>{products.length}</strong> products
+          </div>
+          <div>
+            Page {pagination.currentPage} of {pagination.totalPages}
+          </div>
+        </div>
       </div>
 
       {/* Products Table */}
       <div className="bg-white rounded-lg shadow overflow-hidden">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Product
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Category
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Price
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Stock
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Status
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Actions
-              </th>
-            </tr>
-          </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
-            {products.map((product) => (
-              <tr key={product._id}>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <div className="flex items-center">
-                    <img
-                      className="h-12 w-12 rounded-lg object-cover"
-                      src={product.image[0]}
-                      alt={product.name}
-                    />
-                    <div className="ml-4">
-                      <div className="text-sm font-medium text-gray-900">
-                        {product.name}
+        {products.length === 0 ? (
+          <div className="text-center py-8 text-gray-500">
+            No products found. Try adjusting your filters or add some products.
+          </div>
+        ) : (
+          <>
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Product
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Category
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Price
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Stock
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Status
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {products.map((product) => (
+                  <tr key={product._id}>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center">
+                        <img
+                          className="h-12 w-12 rounded-lg object-cover"
+                          src={product.image?.[0] || '/placeholder.jpg'}
+                          alt={product.name}
+                          onError={(e) => {
+                            e.target.src = '/placeholder.jpg';
+                          }}
+                        />
+                        <div className="ml-4">
+                          <div className="text-sm font-medium text-gray-900">
+                            {product.name}
+                          </div>
+                          <div className="text-sm text-gray-500">
+                            {product.subCategory}
+                          </div>
+                        </div>
                       </div>
-                      <div className="text-sm text-gray-500">
-                        {product.subCategory}
-                      </div>
-                    </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {product.category}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      LKR {product.price}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {product.stockQuantity || 0}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                        product.inStock ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                      }`}>
+                        {product.inStock ? 'In Stock' : 'Out of Stock'}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                      <button
+                        onClick={() => handleEditProduct(product)}
+                        className="text-indigo-600 hover:text-indigo-900 mr-3 px-2 py-1 border border-indigo-300 rounded hover:bg-indigo-50"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => handleDeleteProduct(product._id)}
+                        className="text-red-600 hover:text-red-900 px-2 py-1 border border-red-300 rounded hover:bg-red-50"
+                      >
+                        Delete
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+
+            {/* Pagination Controls */}
+            {pagination.totalPages > 1 && (
+              <div className="bg-gray-50 px-6 py-3 flex items-center justify-between border-t border-gray-200">
+                <div className="flex-1 flex justify-between sm:hidden">
+                  <button
+                    onClick={handlePrevPage}
+                    disabled={pagination.currentPage === 1}
+                    className={`relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md ${
+                      pagination.currentPage === 1
+                        ? 'text-gray-400 bg-gray-100 cursor-not-allowed'
+                        : 'text-gray-700 bg-white hover:bg-gray-50'
+                    }`}
+                  >
+                    Previous
+                  </button>
+                  <button
+                    onClick={handleNextPage}
+                    disabled={pagination.currentPage === pagination.totalPages}
+                    className={`ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md ${
+                      pagination.currentPage === pagination.totalPages
+                        ? 'text-gray-400 bg-gray-100 cursor-not-allowed'
+                        : 'text-gray-700 bg-white hover:bg-gray-50'
+                    }`}
+                  >
+                    Next
+                  </button>
+                </div>
+                <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
+                  <div>
+                    <p className="text-sm text-gray-700">
+                      Showing <span className="font-medium">{((pagination.currentPage - 1) * filters.limit) + 1}</span> to{' '}
+                      <span className="font-medium">
+                        {Math.min(pagination.currentPage * filters.limit, pagination.totalProducts)}
+                      </span>{' '}
+                      of <span className="font-medium">{pagination.totalProducts}</span> results
+                    </p>
                   </div>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                  {product.category}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                  LKR {product.price}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                  {product.stockQuantity}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                    product.inStock ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                  }`}>
-                    {product.inStock ? 'In Stock' : 'Out of Stock'}
-                  </span>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                  <button
-                    onClick={() => handleEditProduct(product)}
-                    className="text-indigo-600 hover:text-indigo-900 mr-3"
-                  >
-                    Edit
-                  </button>
-                  <button
-                    onClick={() => handleDeleteProduct(product._id)}
-                    className="text-red-600 hover:text-red-900"
-                  >
-                    Delete
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                  <div>
+                    <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
+                      <button
+                        onClick={handlePrevPage}
+                        disabled={pagination.currentPage === 1}
+                        className={`relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 text-sm font-medium ${
+                          pagination.currentPage === 1
+                            ? 'text-gray-400 bg-gray-100 cursor-not-allowed'
+                            : 'text-gray-500 bg-white hover:bg-gray-50'
+                        }`}
+                      >
+                        ←
+                      </button>
+                      
+                      {/* Page numbers */}
+                      {Array.from({ length: pagination.totalPages }, (_, i) => i + 1).map((page) => (
+                        <button
+                          key={page}
+                          onClick={() => handlePageChange(page)}
+                          className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium ${
+                            page === pagination.currentPage
+                              ? 'z-10 bg-indigo-50 border-indigo-500 text-indigo-600'
+                              : 'bg-white border-gray-300 text-gray-500 hover:bg-gray-50'
+                          }`}
+                        >
+                          {page}
+                        </button>
+                      ))}
+                      
+                      <button
+                        onClick={handleNextPage}
+                        disabled={pagination.currentPage === pagination.totalPages}
+                        className={`relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 text-sm font-medium ${
+                          pagination.currentPage === pagination.totalPages
+                            ? 'text-gray-400 bg-gray-100 cursor-not-allowed'
+                            : 'text-gray-500 bg-white hover:bg-gray-50'
+                        }`}
+                      >
+                        →
+                      </button>
+                    </nav>
+                  </div>
+                </div>
+              </div>
+            )}
+          </>
+        )}
       </div>
 
       {/* Product Modal */}
@@ -189,6 +370,7 @@ const ProductManagement = () => {
   );
 };
 
+// Keep your existing ProductModal component unchanged
 const ProductModal = ({ product, onClose, onSave }) => {
   const [formData, setFormData] = useState({
     name: product?.name || '',
@@ -204,149 +386,12 @@ const ProductModal = ({ product, onClose, onSave }) => {
   const [loading, setLoading] = useState(false);
   const [imagePreview, setImagePreview] = useState([]);
 
-  // Image compression function
-  const compressImage = (file, maxSizeMB = 2, quality = 0.8) => {
-    return new Promise((resolve) => {
-      const canvas = document.createElement('canvas');
-      const ctx = canvas.getContext('2d');
-      const img = new Image();
-      
-      img.onload = () => {
-        // Calculate new dimensions
-        const maxWidth = 800;
-        const maxHeight = 800;
-        let { width, height } = img;
-        
-        if (width > height) {
-          if (width > maxWidth) {
-            height = (height * maxWidth) / width;
-            width = maxWidth;
-          }
-        } else {
-          if (height > maxHeight) {
-            width = (width * maxHeight) / height;
-            height = maxHeight;
-          }
-        }
-        
-        canvas.width = width;
-        canvas.height = height;
-        
-        // Draw and compress
-        ctx.drawImage(img, 0, 0, width, height);
-        
-        canvas.toBlob(
-          (blob) => {
-            resolve(new File([blob], file.name, {
-              type: 'image/jpeg',
-              lastModified: Date.now()
-            }));
-          },
-          'image/jpeg',
-          quality
-        );
-      };
-      
-      img.src = URL.createObjectURL(file);
-    });
-  };
-
-  const handleImageChange = async (e) => {
-    const files = Array.from(e.target.files);
-    
-    if (files.length === 0) return;
-    
-    // Validate file types
-    const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
-    const invalidFiles = files.filter(file => !validTypes.includes(file.type));
-    
-    if (invalidFiles.length > 0) {
-      toast.error('Please select only image files (JPEG, PNG, WebP)');
-      return;
-    }
-
-    // Check individual file sizes before compression
-    const oversizedFiles = files.filter(file => file.size > 10 * 1024 * 1024); // 10MB limit before compression
-    
-    if (oversizedFiles.length > 0) {
-      toast.error('Some images are too large. Please select images smaller than 10MB.');
-      return;
-    }
-
-    try {
-      setLoading(true);
-      
-      // Compress all images
-      const compressedImages = await Promise.all(
-        files.map(async (file) => {
-          const compressed = await compressImage(file);
-          
-          // Double-check size after compression
-          if (compressed.size > 5 * 1024 * 1024) { // 5MB limit
-            // If still too large, compress more aggressively
-            return await compressImage(file, 1, 0.6);
-          }
-          
-          return compressed;
-        })
-      );
-
-      // Create preview URLs
-      const previews = compressedImages.map(file => URL.createObjectURL(file));
-      
-      setImages(compressedImages);
-      setImagePreview(previews);
-      
-      // Show compression info
-      const originalSize = files.reduce((sum, file) => sum + file.size, 0);
-      const compressedSize = compressedImages.reduce((sum, file) => sum + file.size, 0);
-      const savedSize = ((originalSize - compressedSize) / originalSize * 100).toFixed(1);
-      
-      toast.success(`Images compressed successfully! Saved ${savedSize}% space.`);
-      
-    } catch (error) {
-      console.error('Image compression error:', error);
-      toast.error('Failed to process images. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    // Validate required fields
+    // Validation
     if (!formData.name || !formData.description || !formData.price) {
       toast.error('Please fill in all required fields');
-      return;
-    }
-
-    // Validate field lengths
-    if (formData.name.length > 100) {
-      toast.error('Product name cannot exceed 100 characters');
-      return;
-    }
-
-    if (formData.description.length > 500) {
-      toast.error('Description cannot exceed 500 characters');
-      return;
-    }
-
-    // Validate price
-    if (formData.price <= 0) {
-      toast.error('Price must be greater than 0');
-      return;
-    }
-
-    // Validate stock quantity
-    if (formData.stockQuantity < 0) {
-      toast.error('Stock quantity cannot be negative');
-      return;
-    }
-
-    // Validate sizes
-    if (formData.sizes.length === 0) {
-      toast.error('Please select at least one size');
       return;
     }
 
@@ -370,10 +415,15 @@ const ProductModal = ({ product, onClose, onSave }) => {
       });
 
       // Add images
-      images.forEach((image, index) => {
+      images.forEach((image) => {
         productData.append('images', image);
-        console.log(`Image ${index + 1}: ${(image.size / 1024 / 1024).toFixed(2)}MB`);
       });
+
+      // Debug FormData
+      console.log('📤 Submitting product data:');
+      for (let [key, value] of productData.entries()) {
+        console.log(`${key}:`, value);
+      }
 
       if (product) {
         await AdminApiService.updateProduct(product._id, productData);
@@ -384,18 +434,27 @@ const ProductModal = ({ product, onClose, onSave }) => {
       }
 
       onSave();
-    } catch (error) {
-      console.error('Product save error:', error);
       
-      // Handle validation errors more specifically
-      if (error.message === 'Validation failed') {
-        toast.error('Please check all fields and try again');
-      } else {
-        toast.error(error.message || (product ? 'Failed to update product' : 'Failed to create product'));
-      }
+      // Force refresh after save
+      setTimeout(() => {
+        forceRefresh();
+      }, 1000); // Small delay to ensure server processing
+
+    } catch (error) {
+      console.error('❌ Product save error:', error);
+      toast.error(`Failed to ${product ? 'update' : 'create'} product: ${error.message}`);
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleImageChange = (e) => {
+    const files = Array.from(e.target.files);
+    setImages(files);
+    
+    // Create preview URLs
+    const previews = files.map(file => URL.createObjectURL(file));
+    setImagePreview(previews);
   };
 
   // Cleanup preview URLs on unmount
@@ -415,6 +474,7 @@ const ProductModal = ({ product, onClose, onSave }) => {
           <button
             onClick={onClose}
             className="text-gray-500 hover:text-gray-700"
+            disabled={loading}
           >
             ✕
           </button>
@@ -423,69 +483,29 @@ const ProductModal = ({ product, onClose, onSave }) => {
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Product Name * ({formData.name.length}/100 characters)
+              Product Name *
             </label>
             <input
               type="text"
               required
               value={formData.name}
-              onChange={(e) => {
-                if (e.target.value.length <= 100) {
-                  setFormData({ ...formData, name: e.target.value });
-                }
-              }}
-              className={`w-full border rounded-lg px-3 py-2 ${
-                formData.name.length > 90 
-                  ? 'border-yellow-400 focus:border-yellow-500' 
-                  : formData.name.length === 100
-                  ? 'border-red-400 focus:border-red-500'
-                  : 'border-gray-300 focus:border-blue-500'
-              }`}
-              placeholder="Enter product name (max 100 characters)"
+              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2"
+              placeholder="Enter product name"
             />
-            {formData.name.length > 90 && (
-              <p className={`text-xs mt-1 ${
-                formData.name.length === 100 ? 'text-red-600' : 'text-yellow-600'
-              }`}>
-                {formData.name.length === 100 
-                  ? 'Maximum character limit reached!' 
-                  : `${100 - formData.name.length} characters remaining`
-                }
-              </p>
-            )}
           </div>
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Description * ({formData.description.length}/500 characters)
+              Description *
             </label>
             <textarea
               required
               value={formData.description}
-              onChange={(e) => {
-                if (e.target.value.length <= 500) {
-                  setFormData({ ...formData, description: e.target.value });
-                }
-              }}
-              className={`w-full border rounded-lg px-3 py-2 h-24 ${
-                formData.description.length > 450 
-                  ? 'border-yellow-400 focus:border-yellow-500' 
-                  : formData.description.length === 500
-                  ? 'border-red-400 focus:border-red-500'
-                  : 'border-gray-300 focus:border-blue-500'
-              }`}
-              placeholder="Enter product description (max 500 characters)"
+              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 h-24"
+              placeholder="Enter product description"
             />
-            {formData.description.length > 450 && (
-              <p className={`text-xs mt-1 ${
-                formData.description.length === 500 ? 'text-red-600' : 'text-yellow-600'
-              }`}>
-                {formData.description.length === 500 
-                  ? 'Maximum character limit reached!' 
-                  : `${500 - formData.description.length} characters remaining`
-                }
-              </p>
-            )}
           </div>
 
           <div className="grid grid-cols-2 gap-4">
@@ -507,7 +527,6 @@ const ProductModal = ({ product, onClose, onSave }) => {
               </label>
               <input
                 type="number"
-                required
                 value={formData.stockQuantity}
                 onChange={(e) => setFormData({ ...formData, stockQuantity: e.target.value })}
                 className="w-full border border-gray-300 rounded-lg px-3 py-2"
@@ -550,7 +569,7 @@ const ProductModal = ({ product, onClose, onSave }) => {
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Sizes
             </label>
-            <div className="flex space-x-2">
+            <div className="flex flex-wrap gap-2">
               {['S', 'M', 'L', 'XL', 'XXL'].map(size => (
                 <label key={size} className="flex items-center">
                   <input
@@ -590,40 +609,30 @@ const ProductModal = ({ product, onClose, onSave }) => {
             <input
               type="file"
               multiple
-              accept="image/jpeg,image/jpg,image/png,image/webp"
+              accept="image/*"
               onChange={handleImageChange}
               className="w-full border border-gray-300 rounded-lg px-3 py-2"
               disabled={loading}
             />
-            <div className="text-xs text-gray-500 mt-1">
-              <p>• Accepted formats: JPEG, PNG, WebP</p>
-              <p>• Images will be automatically compressed to under 5MB</p>
-              <p>• Recommended size: 800x800 pixels</p>
-            </div>
-            
-            {/* Image Preview */}
             {imagePreview.length > 0 && (
-              <div className="mt-3">
-                <p className="text-sm font-medium text-gray-700 mb-2">Preview:</p>
-                <div className="flex flex-wrap gap-2">
-                  {imagePreview.map((url, index) => (
-                    <img
-                      key={index}
-                      src={url}
-                      alt={`Preview ${index + 1}`}
-                      className="w-20 h-20 object-cover rounded border"
-                    />
-                  ))}
-                </div>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {imagePreview.map((preview, index) => (
+                  <img
+                    key={index}
+                    src={preview}
+                    alt={`Preview ${index + 1}`}
+                    className="w-16 h-16 object-cover rounded border"
+                  />
+                ))}
               </div>
             )}
           </div>
 
-          <div className="flex justify-end space-x-3 pt-4">
+          <div className="flex justify-end space-x-2">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50"
+              className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
               disabled={loading}
             >
               Cancel

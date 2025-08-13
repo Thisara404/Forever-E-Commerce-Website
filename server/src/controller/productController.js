@@ -2,6 +2,14 @@ const Product = require('../model/Product');
 const { validationResult } = require('express-validator');
 const { uploadImage, deleteImage } = require('../config/r2');
 const { v4: uuidv4 } = require('uuid');
+const { broadcastUpdate } = require('../utils/websocket');
+
+// Add this helper function at the top of productController.js
+const invalidateProductCache = () => {
+  // If you're using any caching, clear it here
+  console.log('🗑️ Invalidating product cache...');
+  // You can add Redis cache clearing here if using Redis
+};
 
 // @desc    Get all products with filtering and search
 // @route   GET /api/products
@@ -140,7 +148,7 @@ const createProduct = async (req, res) => {
       });
     }
 
-    const { name, description, price, category, subCategory, sizes, bestseller } = req.body;
+    const { name, description, price, category, subCategory, sizes, bestseller, stockQuantity } = req.body;
 
     // Handle image uploads to R2
     const images = [];
@@ -167,24 +175,34 @@ const createProduct = async (req, res) => {
       });
     }
 
-    // Create product
-    const product = await Product.create({
+    // Create the product
+    const newProduct = await Product.create({
       name,
       description,
       price: Number(price),
       image: images,
       category,
       subCategory,
-      sizes,
+      sizes: Array.isArray(sizes) ? sizes : [sizes],
       bestseller: bestseller === 'true',
-      sku: `SKU-${Date.now()}`,
+      stockQuantity: stockQuantity ? Number(stockQuantity) : 100,
+      inStock: true,
+      sku: `FOREVER-${Date.now()}`,
       tags: [name.toLowerCase(), category.toLowerCase(), subCategory.toLowerCase()]
     });
+
+    // Broadcast the update
+    broadcastUpdate('PRODUCT_CREATED', newProduct);
+
+    // Invalidate cache after creating
+    invalidateProductCache();
+
+    console.log('✅ Product created successfully:', newProduct._id);
 
     res.status(201).json({
       success: true,
       message: 'Product created successfully',
-      data: product
+      data: newProduct
     });
 
   } catch (error) {
@@ -260,6 +278,9 @@ const updateProduct = async (req, res) => {
       { new: true }
     );
 
+    // Invalidate cache after updating
+    invalidateProductCache();
+
     res.status(200).json({
       success: true,
       message: 'Product updated successfully',
@@ -300,6 +321,9 @@ const deleteProduct = async (req, res) => {
     }
 
     await Product.findByIdAndDelete(req.params.id);
+
+    // Invalidate cache after deleting
+    invalidateProductCache();
 
     res.status(200).json({
       success: true,

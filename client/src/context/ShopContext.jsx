@@ -12,35 +12,86 @@ const ShopContextProvider = (props) => {
   const [showSearch, setShowSearch] = useState(false);
   const [cartItems, setCartItems] = useState({});
   const [products, setProducts] = useState([]);
-  const [loading, setLoading] = useState(true); // Start with true
+  const [loading, setLoading] = useState(true);
   const [user, setUser] = useState(null);
-  const [token, setToken] = useState(localStorage.getItem('token'));
+  const [token, setToken] = useState(null); // Initialize as null
   const navigate = useNavigate();
 
-  // Initialize - Fixed order and debugging
+  // Enhanced token management
+  const getStoredToken = () => {
+    try {
+      // Check multiple storage methods
+      const localToken = localStorage.getItem('token');
+      const sessionToken = sessionStorage.getItem('token');
+      
+      // Verify token format
+      const validToken = localToken || sessionToken;
+      if (validToken && validToken.length > 10 && validToken.includes('.')) {
+        console.log('✅ Valid token found in storage');
+        return validToken;
+      }
+      
+      console.log('❌ No valid token found');
+      return null;
+    } catch (error) {
+      console.error('Error reading token from storage:', error);
+      return null;
+    }
+  };
+
+  const saveToken = (newToken) => {
+    try {
+      if (newToken) {
+        localStorage.setItem('token', newToken);
+        sessionStorage.setItem('token', newToken); // Backup storage
+        setToken(newToken);
+        ApiService.setToken(newToken);
+        console.log('✅ Token saved successfully');
+      }
+    } catch (error) {
+      console.error('Error saving token:', error);
+    }
+  };
+
+  const clearToken = () => {
+    try {
+      localStorage.removeItem('token');
+      sessionStorage.removeItem('token');
+      setToken(null);
+      ApiService.removeToken();
+      console.log('✅ Token cleared successfully');
+    } catch (error) {
+      console.error('Error clearing token:', error);
+    }
+  };
+
+  // Initialize app with better error handling
   useEffect(() => {
     console.log('🔄 ShopContext initializing...');
-    console.log('Token from localStorage:', token ? 'EXISTS' : 'MISSING');
     
     const initializeApp = async () => {
       try {
         setLoading(true);
         
-        if (token) {
-          console.log('🔑 Token found, setting up API and fetching user...');
-          ApiService.setToken(token);
-          await fetchUserProfile();
+        // Get stored token
+        const storedToken = getStoredToken();
+        if (storedToken) {
+          console.log('🔑 Token found, setting up API...');
+          setToken(storedToken);
+          ApiService.setToken(storedToken);
+          
+          try {
+            await fetchUserProfile();
+          } catch (error) {
+            console.error('❌ Token validation failed, clearing:', error);
+            clearToken();
+          }
         } else {
           console.log('❌ No token found');
         }
         
-        // Always fetch products
-        await fetchProducts();
-        
-        // Fetch cart only if user is authenticated
-        if (token && user) {
-          await fetchCart();
-        }
+        // Always try to fetch products (with retries)
+        await fetchProductsWithRetry();
         
       } catch (error) {
         console.error('❌ App initialization error:', error);
@@ -53,15 +104,41 @@ const ShopContextProvider = (props) => {
     initializeApp();
   }, []); // Only run once on mount
 
-  // Separate effect for token changes
-  useEffect(() => {
-    if (token && !user) {
-      console.log('🔄 Token changed, fetching user profile...');
-      fetchUserProfile();
+  // Fetch products with retry logic
+  const fetchProductsWithRetry = async (retries = 3) => {
+    for (let i = 0; i < retries; i++) {
+      try {
+        console.log(`🔄 Fetching products (attempt ${i + 1}/${retries})...`);
+        const response = await ApiService.getProducts();
+        
+        if (response.data && response.data.products) {
+          setProducts(response.data.products);
+          console.log(`✅ Loaded ${response.data.products.length} products`);
+          return; // Success, exit retry loop
+        } else {
+          throw new Error('Invalid response structure');
+        }
+      } catch (error) {
+        console.error(`❌ Attempt ${i + 1} failed:`, error.message);
+        
+        if (i === retries - 1) {
+          // Last attempt failed
+          console.error('❌ All product fetch attempts failed');
+          toast.error('Unable to load products. Please check your connection.');
+          setProducts([]);
+        } else {
+          // Wait before retry
+          await new Promise(resolve => setTimeout(resolve, 1000 * (i + 1)));
+        }
+      }
     }
-  }, [token]);
+  };
 
-  // Fetch user profile with better error handling
+  const fetchProducts = async () => {
+    return fetchProductsWithRetry();
+  };
+
+  // Enhanced user profile fetching
   const fetchUserProfile = async () => {
     try {
       console.log('👤 Fetching user profile...');
@@ -69,45 +146,27 @@ const ShopContextProvider = (props) => {
       console.log('✅ User profile fetched:', response.user);
       setUser(response.user);
       
-      // If user has cart, fetch it
+      // Fetch cart if user is authenticated
       if (response.user) {
         await fetchCart();
       }
     } catch (error) {
       console.error('❌ Failed to fetch user profile:', error);
-      console.log('🔄 Logging out due to profile fetch failure');
-      logout();
-    }
-  };
-
-  // Fetch products from backend
-  const fetchProducts = async () => {
-    try {
-      setLoading(true);
-      const response = await ApiService.getProducts();
-      if (response.data && response.data.products) {
-        setProducts(response.data.products);
-        console.log(`✅ Loaded ${response.data.products.length} products`);
-      } else {
-        console.warn('⚠️ No products found in response');
-        setProducts([]);
+      // Only logout if it's an authentication error
+      if (error.message.includes('401') || error.message.includes('unauthorized')) {
+        console.log('🔄 Invalid token, logging out...');
+        logout();
       }
-    } catch (error) {
-      console.error('❌ Failed to fetch products:', error);
-      toast.error('Failed to fetch products');
-      setProducts([]);
-    } finally {
-      setLoading(false);
+      throw error; // Re-throw for initialization to handle
     }
   };
 
-  // Enhanced cart fetching with better error handling
+  // Enhanced cart fetching
   const fetchCart = async () => {
     try {
       const response = await ApiService.getCart();
       const backendCart = response.data;
       
-      // Convert backend cart format to frontend format
       const frontendCart = {};
       let invalidItemsCount = 0;
       
@@ -122,36 +181,87 @@ const ShopContextProvider = (props) => {
             frontendCart[productId][item.size] = item.quantity;
           } else {
             invalidItemsCount++;
-            console.warn('⚠️ Invalid cart item found:', {
-              hasProductId: !!item?.productId,
-              productIdType: typeof item?.productId,
-              hasSize: !!item?.size,
-              hasQuantity: !!item?.quantity,
-              item: item
-            });
           }
         });
       }
       
       if (invalidItemsCount > 0) {
-        console.warn(`⚠️ Found ${invalidItemsCount} invalid cart items. Consider clearing cart data.`);
-        toast.warning(`Found ${invalidItemsCount} invalid items in cart. Please refresh.`);
+        console.warn(`⚠️ Found ${invalidItemsCount} invalid cart items`);
       }
       
       setCartItems(frontendCart);
     } catch (error) {
       console.error('Failed to fetch cart:', error);
-      // Clear cart if there's an error to prevent infinite error loops
       setCartItems({});
-      
-      // Only show error toast if it's not a authentication error
-      if (error.status !== 401 && error.status !== 403) {
-        toast.error('Failed to load cart items');
-      }
     }
   };
 
-  // Add to cart (backend integrated)
+  // Enhanced authentication functions
+  const login = async (email, password) => {
+    try {
+      setLoading(true);
+      console.log('🔄 Attempting login...');
+      
+      const response = await ApiService.login({ email, password });
+      console.log('✅ Login successful:', response);
+      
+      // Save token and user data
+      saveToken(response.token);
+      setUser(response.user);
+      
+      toast.success('Login successful');
+      
+      // Navigate based on user role
+      if (response.user.role === 'admin') {
+        console.log('👑 Admin user detected, navigating to admin dashboard');
+        navigate('/admin');
+      } else {
+        navigate('/');
+      }
+      
+      // Fetch cart after successful login
+      await fetchCart();
+      
+    } catch (error) {
+      console.error('❌ Login failed:', error);
+      toast.error(error.message || 'Login failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const register = async (userData) => {
+    try {
+      setLoading(true);
+      console.log('🔄 Attempting registration...');
+      
+      const response = await ApiService.register(userData);
+      console.log('✅ Registration successful:', response);
+      
+      // Save token and user data
+      saveToken(response.token);
+      setUser(response.user);
+      
+      toast.success('Registration successful');
+      navigate('/');
+    } catch (error) {
+      console.error('❌ Registration failed:', error);
+      toast.error(error.message || 'Registration failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const logout = () => {
+    console.log('🔄 Logging out...');
+    clearToken();
+    setUser(null);
+    setCartItems({});
+    toast.success('Logged out successfully');
+    navigate('/');
+  };
+
+  // Add to cart with better error handling
   const addToCart = async (itemId, size) => {
     if (!size) {
       toast.error('Select Product Size');
@@ -245,80 +355,14 @@ const ShopContextProvider = (props) => {
     return totalAmount;
   };
 
-  // Authentication functions
-  const login = async (email, password) => {
-    try {
-      setLoading(true);
-      console.log('🔄 Attempting login...');
-      
-      const response = await ApiService.login({ email, password });
-      console.log('✅ Login successful:', response);
-      
-      setToken(response.token);
-      setUser(response.user);
-      ApiService.setToken(response.token);
-      localStorage.setItem('token', response.token);
-      
-      toast.success('Login successful');
-      
-      // Navigate based on user role
-      if (response.user.role === 'admin') {
-        console.log('👑 Admin user detected, navigating to admin dashboard');
-        navigate('/admin');
-      } else {
-        navigate('/');
-      }
-      
-      await fetchCart();
-    } catch (error) {
-      console.error('❌ Login failed:', error);
-      toast.error(error.message || 'Login failed');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const register = async (userData) => {
-    try {
-      setLoading(true);
-      console.log('🔄 Attempting registration...');
-      
-      const response = await ApiService.register(userData);
-      console.log('✅ Registration successful:', response);
-      
-      setToken(response.token);
-      setUser(response.user);
-      ApiService.setToken(response.token);
-      localStorage.setItem('token', response.token);
-      
-      toast.success('Registration successful');
-      navigate('/');
-    } catch (error) {
-      console.error('❌ Registration failed:', error);
-      toast.error(error.message || 'Registration failed');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const logout = () => {
-    console.log('🔄 Logging out...');
-    setToken(null);
-    setUser(null);
-    setCartItems({});
-    ApiService.removeToken();
-    localStorage.removeItem('token');
-    toast.success('Logged out successfully');
-    navigate('/');
-  };
-
   // Debug current state
   console.log('🔍 ShopContext state:', {
     loading,
     hasToken: !!token,
     hasUser: !!user,
     userRole: user?.role,
-    userName: user?.name
+    userName: user?.name,
+    productsCount: products.length
   });
 
   const value = {
