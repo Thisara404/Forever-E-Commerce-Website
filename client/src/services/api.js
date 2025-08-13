@@ -150,6 +150,13 @@ class ApiService {
       body: JSON.stringify({ orderId }),
     });
   }
+
+  async confirmStripePayment(paymentIntentId, orderId) {
+    return this.fetchWithAuth('/payments/stripe/confirm', {
+      method: 'POST',
+      body: JSON.stringify({ paymentIntentId, orderId }),
+    });
+  }
 }
 
 export default new ApiService();

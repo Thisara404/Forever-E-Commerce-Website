@@ -2,6 +2,7 @@ import React, { useContext, useState } from 'react';
 import { toast } from 'react-toastify';
 import Title from '../components/Title';
 import CartTotal from '../components/CartTotal';
+import StripePayment from '../components/StripePayment';
 import { assets } from '../assets/assets';
 import { ShopContext } from '../context/ShopContext';
 import ApiService from '../services/api';
@@ -20,6 +21,8 @@ const PlaceOrder = () => {
     phone: ''
   });
   const [loading, setLoading] = useState(false);
+  const [showStripePayment, setShowStripePayment] = useState(false);
+  const [currentOrderId, setCurrentOrderId] = useState(null);
 
   const { navigate, cartItems, products, getCartAmount, delivery_fee, user, token } = useContext(ShopContext);
 
@@ -91,6 +94,7 @@ const PlaceOrder = () => {
       const totalAmount = getCartAmount() + delivery_fee;
 
       toast.success('Order created successfully');
+      setCurrentOrderId(orderId);
 
       // Handle payment based on method
       if (method === 'cod') {
@@ -99,11 +103,8 @@ const PlaceOrder = () => {
         toast.success('Order confirmed! You can pay on delivery.');
         navigate('/orders');
       } else if (method === 'stripe') {
-        // Handle Stripe payment
-        const paymentResponse = await ApiService.createStripePayment(orderId, totalAmount);
-        // Redirect to Stripe checkout or handle payment intent
-        // You'll need to implement Stripe Elements here
-        console.log('Stripe payment intent:', paymentResponse);
+        // Show Stripe payment form
+        setShowStripePayment(true);
       } else if (method === 'payhere') {
         // Handle PayHere payment
         const paymentResponse = await ApiService.createPayHerePayment(orderId, totalAmount);
@@ -133,6 +134,31 @@ const PlaceOrder = () => {
       setLoading(false);
     }
   };
+
+  const handleStripeSuccess = () => {
+    setShowStripePayment(false);
+    navigate('/orders');
+  };
+
+  const handleStripeCancel = () => {
+    setShowStripePayment(false);
+    toast.info('Payment cancelled. You can try again from your orders page.');
+    navigate('/orders');
+  };
+
+  // Show Stripe payment modal
+  if (showStripePayment && currentOrderId) {
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <StripePayment
+          orderId={currentOrderId}
+          amount={getCartAmount() + delivery_fee}
+          onSuccess={handleStripeSuccess}
+          onCancel={handleStripeCancel}
+        />
+      </div>
+    );
+  }
 
   return (
     <form onSubmit={onSubmitHandler} className='flex flex-col sm:flex-row justify-between gap-4 pt-5 sm:pt-14 min-h-[80vh] border-t'>
