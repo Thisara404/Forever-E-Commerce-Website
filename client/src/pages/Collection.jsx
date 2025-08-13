@@ -3,13 +3,13 @@ import { ShopContext } from '../context/ShopContext'
 import { assets } from '../assets/assets';
 import Title from '../components/Title';
 import ProductItem from '../components/ProductItem';
-import ApiService from '../services/api'; // Add this import
+import ApiService from '../services/api';
 
 const Collection = () => {
     const { search, showSearch, loading: contextLoading } = useContext(ShopContext);
     const [showFilter, setShowFilter] = useState(false);
-    const [products, setProducts] = useState([]); // Local products state
-    const [loading, setLoading] = useState(true); // Local loading state
+    const [products, setProducts] = useState([]);
+    const [loading, setLoading] = useState(true);
     const [category, setCategory] = useState([]);
     const [subCategory, setSubCategory] = useState([]);
     const [sortType, setSortType] = useState('relevant');
@@ -29,30 +29,49 @@ const Collection = () => {
             const params = {
                 page: currentPage,
                 limit: productsPerPage,
-                ...(category.length > 0 && { category: category.join(',') }),
-                ...(subCategory.length > 0 && { subCategory: subCategory.join(',') }),
-                ...(search && showSearch && { search }),
-                ...(sortType !== 'relevant' && { 
-                    sortBy: 'price', 
-                    sortOrder: sortType === 'low-high' ? 'asc' : 'desc' 
-                })
             };
+
+            // Add filters only if they exist
+            if (category.length > 0) {
+                params.category = category.join(',');
+            }
+            if (subCategory.length > 0) {
+                params.subCategory = subCategory.join(',');
+            }
+            if (search && showSearch) {
+                params.search = search;
+            }
+            
+            // Add sorting parameters
+            if (sortType !== 'relevant') {
+                params.sortBy = 'price';
+                params.sortOrder = sortType === 'low-high' ? 'asc' : 'desc';
+            } else {
+                // For relevant, sort by newest first
+                params.sortBy = 'createdAt';
+                params.sortOrder = 'desc';
+            }
 
             console.log('🔄 Fetching products with params:', params);
 
             const response = await ApiService.getProducts(params);
             
             if (response.success) {
-                setProducts(response.data.products);
-                setTotalProducts(response.data.pagination.totalProducts);
-                setTotalPages(response.data.pagination.totalPages);
+                setProducts(response.data.products || []);
+                setTotalProducts(response.data.pagination?.totalProducts || 0);
+                setTotalPages(response.data.pagination?.totalPages || 0);
                 
                 console.log('✅ Products fetched:', {
-                    count: response.data.products.length,
-                    totalProducts: response.data.pagination.totalProducts,
-                    totalPages: response.data.pagination.totalPages,
-                    currentPage: response.data.pagination.currentPage
+                    count: response.data.products?.length || 0,
+                    totalProducts: response.data.pagination?.totalProducts || 0,
+                    totalPages: response.data.pagination?.totalPages || 0,
+                    currentPage: response.data.pagination?.currentPage || 1
                 });
+            } else {
+                console.error('❌ API response not successful:', response);
+                setProducts([]);
+                setTotalProducts(0);
+                setTotalPages(0);
             }
         } catch (error) {
             console.error('❌ Error fetching products:', error);
@@ -71,30 +90,39 @@ const Collection = () => {
 
     // Reset to first page when filters change
     const resetToFirstPage = () => {
-        if (currentPage !== 1) {
-            setCurrentPage(1);
-        } else {
-            fetchProducts(); // If already on page 1, fetch immediately
-        }
+        setCurrentPage(1);
     };
 
     const toggleCategory = (e) => {
-        if (category.includes(e.target.value)) {
-            setCategory(prev => prev.filter(item => item !== e.target.value))
-        } else {
-            setCategory(prev => [...prev, e.target.value])
-        }
+        const value = e.target.value;
+        setCategory(prev => {
+            const newCategory = prev.includes(value) 
+                ? prev.filter(item => item !== value)
+                : [...prev, value];
+            console.log('Category updated:', newCategory);
+            return newCategory;
+        });
         resetToFirstPage();
     }
 
     const toggleSubCategory = (e) => {
-        if (subCategory.includes(e.target.value)) {
-            setSubCategory(prev => prev.filter(item => item !== e.target.value))
-        } else {
-            setSubCategory(prev => [...prev, e.target.value])
-        }
+        const value = e.target.value;
+        setSubCategory(prev => {
+            const newSubCategory = prev.includes(value) 
+                ? prev.filter(item => item !== value)
+                : [...prev, value];
+            console.log('SubCategory updated:', newSubCategory);
+            return newSubCategory;
+        });
         resetToFirstPage();
     }
+
+    const handleSortChange = (e) => {
+        const newSortType = e.target.value;
+        console.log('Sort changed to:', newSortType);
+        setSortType(newSortType);
+        resetToFirstPage();
+    };
 
     // Debug pagination
     console.log('Pagination Debug:', {
@@ -103,7 +131,10 @@ const Collection = () => {
         currentPage,
         productsPerPage,
         showPagination: totalPages > 1,
-        productsCount: products.length
+        productsCount: products.length,
+        category,
+        subCategory,
+        sortType
     });
 
     // Pagination handlers
@@ -190,33 +221,90 @@ const Collection = () => {
                 {/* Category Filter */}
                 <div className={`border border-gray-300 pl-5 py-3 mt-6 ${showFilter ? '' : 'hidden'} sm:block`}>
                     <p className='mb-3 text-sm font-medium'>CATEGORIES</p>
-                    <div className='flex flex-col gap-2 text-2 text-sm font-light text-gray-700'>
-                        <p className='flex gap-2'>
-                            <input className='w-3' type="checkbox" value={'Men'} onChange={toggleCategory}/> Men
-                        </p>
-                        <p className='flex gap-2'>
-                            <input className='w-3' type="checkbox" value={'Women'} onChange={toggleCategory}/> Women
-                        </p>
-                        <p className='flex gap-2'>
-                            <input className='w-3' type="checkbox" value={'Kids'} onChange={toggleCategory}/> Kids
-                        </p>
+                    <div className='flex flex-col gap-2 text-sm font-light text-gray-700'>
+                        <label className='flex gap-2 cursor-pointer'>
+                            <input 
+                                className='w-3' 
+                                type="checkbox" 
+                                value={'Men'} 
+                                checked={category.includes('Men')}
+                                onChange={toggleCategory}
+                            /> 
+                            Men
+                        </label>
+                        <label className='flex gap-2 cursor-pointer'>
+                            <input 
+                                className='w-3' 
+                                type="checkbox" 
+                                value={'Women'} 
+                                checked={category.includes('Women')}
+                                onChange={toggleCategory}
+                            /> 
+                            Women
+                        </label>
+                        <label className='flex gap-2 cursor-pointer'>
+                            <input 
+                                className='w-3' 
+                                type="checkbox" 
+                                value={'Kids'} 
+                                checked={category.includes('Kids')}
+                                onChange={toggleCategory}
+                            /> 
+                            Kids
+                        </label>
                     </div>
                 </div>
-                {/* SubCategory filter*/}
+
+                {/* SubCategory filter */}
                 <div className={`border border-gray-300 pl-5 py-3 my-5 ${showFilter ? '' : 'hidden'} sm:block`}>
                     <p className='mb-3 text-sm font-medium'>TYPE</p>
-                    <div className='flex flex-col gap-2 text-2 text-sm font-light text-gray-700'>
-                        <p className='flex gap-2'>
-                            <input className='w-3' type="checkbox" value={'Topwear'} onChange={toggleSubCategory}/> Topwear
-                        </p>
-                        <p className='flex gap-2'>
-                            <input className='w-3' type="checkbox" value={'Bottomwear'} onChange={toggleSubCategory}/> Bottomwear
-                        </p>
-                        <p className='flex gap-2'>
-                            <input className='w-3' type="checkbox" value={'Winterwear'} onChange={toggleSubCategory}/> Winterwear
-                        </p>
+                    <div className='flex flex-col gap-2 text-sm font-light text-gray-700'>
+                        <label className='flex gap-2 cursor-pointer'>
+                            <input 
+                                className='w-3' 
+                                type="checkbox" 
+                                value={'Topwear'} 
+                                checked={subCategory.includes('Topwear')}
+                                onChange={toggleSubCategory}
+                            /> 
+                            Topwear
+                        </label>
+                        <label className='flex gap-2 cursor-pointer'>
+                            <input 
+                                className='w-3' 
+                                type="checkbox" 
+                                value={'Bottomwear'} 
+                                checked={subCategory.includes('Bottomwear')}
+                                onChange={toggleSubCategory}
+                            /> 
+                            Bottomwear
+                        </label>
+                        <label className='flex gap-2 cursor-pointer'>
+                            <input 
+                                className='w-3' 
+                                type="checkbox" 
+                                value={'Winterwear'} 
+                                checked={subCategory.includes('Winterwear')}
+                                onChange={toggleSubCategory}
+                            /> 
+                            Winterwear
+                        </label>
                     </div>
                 </div>
+
+                {/* Clear Filters Button */}
+                {(category.length > 0 || subCategory.length > 0) && (
+                    <button 
+                        onClick={() => {
+                            setCategory([]);
+                            setSubCategory([]);
+                            resetToFirstPage();
+                        }}
+                        className='mt-4 px-4 py-2 bg-gray-200 text-gray-700 text-sm rounded hover:bg-gray-300 transition-colors'
+                    >
+                        Clear All Filters
+                    </button>
+                )}
             </div>
 
             {/* Right Side */}
@@ -226,17 +314,45 @@ const Collection = () => {
                     {/* Product sort */}
                     <select 
                         value={sortType}
-                        onChange={(e) => {
-                            setSortType(e.target.value);
-                            resetToFirstPage();
-                        }} 
-                        className='border-2 border-gray-300 text-sm px-2'
+                        onChange={handleSortChange}
+                        className='border-2 border-gray-300 text-sm px-2 py-1 rounded focus:outline-none focus:border-gray-500'
                     >
                         <option value="relevant">Sort by: Relevant</option>
                         <option value="low-high">Sort by: Low to High</option>
                         <option value="high-low">Sort by: High to Low</option>
                     </select>
                 </div>
+
+                {/* Active Filters Display */}
+                {(category.length > 0 || subCategory.length > 0) && (
+                    <div className='mb-4 p-3 bg-blue-50 border border-blue-200 rounded'>
+                        <p className='text-sm font-medium text-blue-800 mb-2'>Active Filters:</p>
+                        <div className='flex flex-wrap gap-2'>
+                            {category.map(cat => (
+                                <span key={cat} className='px-2 py-1 bg-blue-200 text-blue-800 text-xs rounded flex items-center gap-1'>
+                                    Category: {cat}
+                                    <button 
+                                        onClick={() => toggleCategory({ target: { value: cat } })}
+                                        className='text-blue-600 hover:text-blue-800'
+                                    >
+                                        ×
+                                    </button>
+                                </span>
+                            ))}
+                            {subCategory.map(subCat => (
+                                <span key={subCat} className='px-2 py-1 bg-green-200 text-green-800 text-xs rounded flex items-center gap-1'>
+                                    Type: {subCat}
+                                    <button 
+                                        onClick={() => toggleSubCategory({ target: { value: subCat } })}
+                                        className='text-green-600 hover:text-green-800'
+                                    >
+                                        ×
+                                    </button>
+                                </span>
+                            ))}
+                        </div>
+                    </div>
+                )}
 
                 {/* Products count and pagination info */}
                 <div className='flex justify-between items-center mb-4 text-sm text-gray-600'>
@@ -333,6 +449,9 @@ const Collection = () => {
                         <p>Products Per Page: {productsPerPage}</p>
                         <p>Products Displayed: {products.length}</p>
                         <p>Show Pagination: {totalPages > 1 ? 'Yes' : 'No'}</p>
+                        <p>Active Categories: {JSON.stringify(category)}</p>
+                        <p>Active SubCategories: {JSON.stringify(subCategory)}</p>
+                        <p>Sort Type: {sortType}</p>
                     </div>
                 )}
             </div>
