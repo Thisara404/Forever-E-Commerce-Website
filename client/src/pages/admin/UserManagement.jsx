@@ -15,6 +15,15 @@ const UserManagement = () => {
     fetchUsers();
   }, [filters]);
 
+  // Add debounced search effect
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      fetchUsers();
+    }, 500);
+
+    return () => clearTimeout(timeoutId);
+  }, [filters.search]);
+
   const fetchUsers = async () => {
     try {
       setLoading(true);
@@ -37,6 +46,16 @@ const UserManagement = () => {
     }
   };
 
+  // Update search handler
+  const handleSearchChange = (e) => {
+    const value = e.target.value;
+    setFilters(prev => ({ 
+      ...prev, 
+      search: value, 
+      page: 1 
+    }));
+  };
+
   return (
     <div>
       <h2 className="text-3xl font-bold text-gray-800 mb-6">User Management</h2>
@@ -47,7 +66,7 @@ const UserManagement = () => {
           type="text"
           placeholder="Search users..."
           value={filters.search}
-          onChange={(e) => setFilters({ ...filters, search: e.target.value, page: 1 })}
+          onChange={handleSearchChange}
           className="border border-gray-300 rounded-lg px-3 py-2 w-full md:w-1/3"
         />
       </div>

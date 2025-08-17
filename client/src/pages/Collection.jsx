@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useCallback, useMemo } from 'react'
 import { assets } from '../assets/assets';
 import Title from '../components/Title';
 import ProductItem from '../components/ProductItem';
@@ -22,10 +22,13 @@ const Collection = () => {
     const [productsPerPage] = useState(24);
     const [totalProducts, setTotalProducts] = useState(0);
     const [totalPages, setTotalPages] = useState(0);
+    const [loading, setLoading] = useState(false);
 
-    // Fetch products from backend with pagination
-    const fetchProductsData = async () => {
+    // Debounced search function
+    const fetchProductsData = useCallback(async () => {
         try {
+            setLoading(true);
+            
             // Build query parameters
             const params = {
                 page: currentPage,
@@ -39,8 +42,10 @@ const Collection = () => {
             if (subCategory.length > 0) {
                 params.subCategory = subCategory.join(',');
             }
-            if (search && showSearch) {
-                params.search = search;
+            
+            // Fix: Only add search if showSearch is true AND search has content
+            if (showSearch && search && search.trim().length > 0) {
+                params.search = search.trim();
             }
             
             // Add sorting parameters
@@ -48,7 +53,6 @@ const Collection = () => {
                 params.sortBy = 'price';
                 params.sortOrder = sortType === 'low-high' ? 'asc' : 'desc';
             } else {
-                // For relevant, sort by newest first
                 params.sortBy = 'createdAt';
                 params.sortOrder = 'desc';
             }
@@ -58,15 +62,18 @@ const Collection = () => {
             const response = await ApiService.getProducts(params);
             
             if (response.success) {
-                setFilterProducts(response.data.products || []);
-                setTotalProducts(response.data.pagination?.totalProducts || 0);
-                setTotalPages(response.data.pagination?.totalPages || 0);
+                const products = response.data.products || [];
+                const pagination = response.data.pagination || {};
+                
+                setFilterProducts(products);
+                setTotalProducts(pagination.totalProducts || 0);
+                setTotalPages(pagination.totalPages || 0);
                 
                 console.log('✅ Products fetched:', {
-                    count: response.data.products?.length || 0,
-                    totalProducts: response.data.pagination?.totalProducts || 0,
-                    totalPages: response.data.pagination?.totalPages || 0,
-                    currentPage: response.data.pagination?.currentPage || 1
+                    count: products.length,
+                    totalProducts: pagination.totalProducts || 0,
+                    totalPages: pagination.totalPages || 0,
+                    currentPage: pagination.currentPage || 1
                 });
             } else {
                 console.error('❌ API response not successful:', response);
@@ -79,20 +86,26 @@ const Collection = () => {
             setFilterProducts([]);
             setTotalProducts(0);
             setTotalPages(0);
+        } finally {
+            setLoading(false);
         }
-    };
+    }, [currentPage, category, subCategory, sortType, search, showSearch, productsPerPage]);
 
-    // Fetch products when filters or pagination changes
+    // Debounce search - only fetch after user stops typing
     useEffect(() => {
-        fetchProductsData();
-    }, [currentPage, category, subCategory, sortType, search, showSearch]);
+        const delayedSearch = setTimeout(() => {
+            fetchProductsData();
+        }, 300); // 300ms delay
+
+        return () => clearTimeout(delayedSearch);
+    }, [fetchProductsData]);
 
     // Reset to first page when filters change
-    const resetToFirstPage = () => {
+    const resetToFirstPage = useCallback(() => {
         setCurrentPage(1);
-    };
+    }, []);
 
-    const toggleCategory = (e) => {
+    const toggleCategory = useCallback((e) => {
         const value = e.target.value;
         setCategory(prev => {
             const newCategory = prev.includes(value) 
@@ -102,9 +115,9 @@ const Collection = () => {
             return newCategory;
         });
         resetToFirstPage();
-    }
+    }, [resetToFirstPage]);
 
-    const toggleSubCategory = (e) => {
+    const toggleSubCategory = useCallback((e) => {
         const value = e.target.value;
         setSubCategory(prev => {
             const newSubCategory = prev.includes(value) 
@@ -114,48 +127,35 @@ const Collection = () => {
             return newSubCategory;
         });
         resetToFirstPage();
-    }
+    }, [resetToFirstPage]);
 
-    const handleSortChange = (e) => {
+    const handleSortChange = useCallback((e) => {
         const newSortType = e.target.value;
         console.log('Sort changed to:', newSortType);
         setSortType(newSortType);
         resetToFirstPage();
-    };
-
-    // Debug pagination
-    console.log('Pagination Debug:', {
-        totalProducts,
-        totalPages,
-        currentPage,
-        productsPerPage,
-        showPagination: totalPages > 1,
-        productsCount: filterProducts.length,
-        category,
-        subCategory,
-        sortType
-    });
+    }, [resetToFirstPage]);
 
     // Pagination handlers
-    const handlePageChange = (pageNumber) => {
+    const handlePageChange = useCallback((pageNumber) => {
         setCurrentPage(pageNumber);
         window.scrollTo({ top: 0, behavior: 'smooth' });
-    };
+    }, []);
 
-    const handlePrevPage = () => {
+    const handlePrevPage = useCallback(() => {
         if (currentPage > 1) {
             handlePageChange(currentPage - 1);
         }
-    };
+    }, [currentPage, handlePageChange]);
 
-    const handleNextPage = () => {
+    const handleNextPage = useCallback(() => {
         if (currentPage < totalPages) {
             handlePageChange(currentPage + 1);
         }
-    };
+    }, [currentPage, totalPages, handlePageChange]);
 
     // Generate page numbers for pagination
-    const getPageNumbers = () => {
+    const getPageNumbers = useMemo(() => {
         const pageNumbers = [];
         const maxVisiblePages = 5;
         
@@ -188,19 +188,14 @@ const Collection = () => {
         }
         
         return pageNumbers;
-    };
+    }, [currentPage, totalPages]);
 
     // Fetch products on mount
     useEffect(() => {
         dispatch(fetchProducts());
     }, [dispatch]);
 
-    // Keep existing filter logic
-    const applyFilter = () => {
-        // ...existing filter logic
-    };
-
-    if (productsLoading) {
+    if (productsLoading || loading) {
         return (
             <div className='flex flex-col sm:flex-row gap-1 sm:gap-10 pt-10 border-t'>
                 <div className='min-w-60'>
@@ -333,7 +328,7 @@ const Collection = () => {
                 </div>
 
                 {/* Active Filters Display */}
-                {(category.length > 0 || subCategory.length > 0) && (
+                {(category.length > 0 || subCategory.length > 0 || (showSearch && search)) && (
                     <div className='mb-4 p-3 bg-blue-50 border border-blue-200 rounded'>
                         <p className='text-sm font-medium text-blue-800 mb-2'>Active Filters:</p>
                         <div className='flex flex-wrap gap-2'>
@@ -359,6 +354,20 @@ const Collection = () => {
                                     </button>
                                 </span>
                             ))}
+                            {showSearch && search && (
+                                <span className='px-2 py-1 bg-purple-200 text-purple-800 text-xs rounded flex items-center gap-1'>
+                                    Search: "{search}"
+                                    <button 
+                                        onClick={() => {
+                                            dispatch(setSearch(''));
+                                            dispatch(setShowSearch(false));
+                                        }}
+                                        className='text-purple-600 hover:text-purple-800'
+                                    >
+                                        ×
+                                    </button>
+                                </span>
+                            )}
                         </div>
                     </div>
                 )}
@@ -389,12 +398,12 @@ const Collection = () => {
                         ))
                     ) : (
                         <div className='col-span-full text-center text-gray-500 py-8'>
-                            No products found matching your criteria
+                            {search ? `No products found for "${search}"` : 'No products found matching your criteria'}
                         </div>
                     )}
                 </div>
 
-                {/* Pagination - Always show if totalPages > 1 */}
+                {/* Pagination */}
                 {totalPages > 1 && (
                     <div className='flex justify-center items-center mt-8 mb-8 space-x-2 bg-gray-50 p-4 rounded-lg'>
                         {/* Previous Button */}
@@ -412,7 +421,7 @@ const Collection = () => {
 
                         {/* Page Numbers */}
                         <div className='flex space-x-1'>
-                            {getPageNumbers().map((pageNumber, index) => (
+                            {getPageNumbers.map((pageNumber, index) => (
                                 pageNumber === '...' ? (
                                     <span key={index} className='px-3 py-2 text-gray-500'>
                                         ...
@@ -468,4 +477,4 @@ const Collection = () => {
     )
 }
 
-export default Collection
+export default Collection;

@@ -16,15 +16,19 @@ const SearchBar = () => {
       setVisible(true);
     } else {
       setVisible(false);
-      // Hide search bar when not on collection page
+      // Clear search when leaving collection page
+      if (search) {
+        dispatch(setSearch(''));
+      }
       dispatch(setShowSearch(false));
     }
   }, [location, dispatch]);
 
   const handleSearchSubmit = (e) => {
     e.preventDefault();
-    // Search functionality is handled automatically by the Collection component
-    // through the search state in Redux
+    if (search.trim()) {
+      dispatch(setShowSearch(true));
+    }
   };
 
   const handleClearSearch = () => {
@@ -32,18 +36,35 @@ const SearchBar = () => {
     dispatch(setShowSearch(false));
   };
 
-  return visible ? (
+  const handleInputChange = (e) => {
+    const value = e.target.value;
+    dispatch(setSearch(value));
+    
+    // Auto-enable search when user types
+    if (value.trim()) {
+      dispatch(setShowSearch(true));
+    } else {
+      dispatch(setShowSearch(false));
+    }
+  };
+
+  return visible && showSearch ? (
     <div className='border-t border-b bg-gray-50 text-center'>
       <form onSubmit={handleSearchSubmit} className='inline-flex items-center justify-center border border-gray-400 px-5 py-2 my-5 mx-3 rounded-full w-3/4 sm:w-1/2'>
         <input 
           value={search} 
-          onChange={(e) => dispatch(setSearch(e.target.value))} 
+          onChange={handleInputChange}
           className='flex-1 outline-none bg-inherit text-sm' 
           type="text" 
           placeholder='Search products...'
           autoFocus
         />
-        <img className='w-4 cursor-pointer' src={assets.search_icon} alt="search" onClick={handleSearchSubmit} />
+        <img 
+          className='w-4 cursor-pointer' 
+          src={assets.search_icon} 
+          alt="search" 
+          onClick={handleSearchSubmit} 
+        />
       </form>
       <img 
         onClick={handleClearSearch} 

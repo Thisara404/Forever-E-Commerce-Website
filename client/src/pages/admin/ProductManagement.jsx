@@ -20,19 +20,51 @@ const ProductManagement = () => {
     limit: 20  // Keep 20 per page but add pagination
   });
 
+  // Main useEffect for fetching products
   useEffect(() => {
     fetchProducts();
-  }, [filters, refreshTrigger]); // Add refreshTrigger here
+  }, [filters.page, filters.category]); // Only trigger on page and category changes
+
+  // Separate debounced effect for search
+  useEffect(() => {
+    if (filters.search === '') {
+      // If search is empty, fetch immediately
+      fetchProducts();
+    } else {
+      // Debounce search
+      const timeoutId = setTimeout(() => {
+        fetchProducts();
+      }, 500);
+
+      return () => clearTimeout(timeoutId);
+    }
+  }, [filters.search]);
 
   const fetchProducts = async () => {
     try {
       setLoading(true);
       console.log('🔄 Fetching products with filters:', filters);
-      const response = await AdminApiService.getProducts(filters);
+      
+      // Build query parameters
+      const queryParams = {
+        page: filters.page,
+        limit: filters.limit
+      };
+
+      // Only add search if it has content
+      if (filters.search && filters.search.trim()) {
+        queryParams.search = filters.search.trim();
+      }
+
+      // Only add category if selected
+      if (filters.category) {
+        queryParams.category = filters.category;
+      }
+
+      const response = await AdminApiService.getProducts(queryParams);
       console.log('✅ Products response:', response);
       
       if (response.success && response.data) {
-        // Handle both paginated and non-paginated responses
         const productList = response.data.products || response.data;
         const paginationData = response.data.pagination || {};
         
@@ -110,6 +142,26 @@ const ProductManagement = () => {
     setRefreshTrigger(prev => prev + 1);
   };
 
+  // Update the search input handler
+  const handleSearchChange = (e) => {
+    const value = e.target.value;
+    setFilters(prev => ({ 
+      ...prev, 
+      search: value, 
+      page: 1 // Reset to first page when searching
+    }));
+  };
+
+  // Add clear filters function
+  const handleClearFilters = () => {
+    setFilters({
+      category: '',
+      search: '',
+      page: 1,
+      limit: 20
+    });
+  };
+
   if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
@@ -147,7 +199,7 @@ const ProductManagement = () => {
             type="text"
             placeholder="Search products..."
             value={filters.search}
-            onChange={(e) => setFilters({ ...filters, search: e.target.value, page: 1 })}
+            onChange={handleSearchChange}
             className="border border-gray-300 rounded-lg px-3 py-2"
           />
           <select

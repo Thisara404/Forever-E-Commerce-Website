@@ -414,9 +414,16 @@ const cancelOrder = async (req, res) => {
 // @access  Private (Admin only)
 const getAllOrders = async (req, res) => {
   try {
-    const { page = 1, limit = 20, status, userId, includePending = false } = req.query;
+    const { 
+      page = 1, 
+      limit = 20, 
+      status, 
+      userId, 
+      search,  // Add search parameter
+      includePending = false 
+    } = req.query;
 
-    // **UPDATED: Build filter to exclude payment_pending by default**
+    // Build filter to exclude payment_pending by default
     const filter = {};
     
     if (includePending !== 'true') {
@@ -429,6 +436,20 @@ const getAllOrders = async (req, res) => {
     
     if (userId) {
       filter.userId = userId;
+    }
+
+    // Add search functionality
+    if (search && search.trim()) {
+      const searchTerm = search.trim();
+      filter.$or = [
+        // Search by order ID (partial match)
+        { _id: { $regex: searchTerm, $options: 'i' } },
+        // Search by shipping address fields
+        { 'shippingAddress.firstName': { $regex: searchTerm, $options: 'i' } },
+        { 'shippingAddress.lastName': { $regex: searchTerm, $options: 'i' } },
+        { 'shippingAddress.email': { $regex: searchTerm, $options: 'i' } },
+        { 'shippingAddress.phone': { $regex: searchTerm, $options: 'i' } }
+      ];
     }
 
     const skip = (page - 1) * limit;
