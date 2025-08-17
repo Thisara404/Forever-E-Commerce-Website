@@ -41,6 +41,18 @@ const PlaceOrder = () => {
     setFormData(data => ({ ...data, [name]: value }));
   };
 
+  const handleStripeSuccess = () => {
+    setShowStripePayment(false);
+    
+    // Clear cart on successful payment
+    dispatch(clearCart());
+    
+    // Navigate to orders
+    navigate('/orders');
+    
+    toast.success('Payment successful! Order confirmed.');
+  };
+
   const onSubmitHandler = async (event) => {
     event.preventDefault();
     
@@ -57,7 +69,7 @@ const PlaceOrder = () => {
 
     try {
       setLoading(true);
-
+      
       // Prepare order items
       const orderItems = [];
       for (const items in cartItems) {
@@ -109,6 +121,10 @@ const PlaceOrder = () => {
       if (method === 'cod') {
         // Process COD order
         await ApiService.processCODOrder(orderId);
+        
+        // Clear cart immediately for COD orders
+        dispatch(clearCart());
+        
         toast.success('Order confirmed! You can pay on delivery.');
         navigate('/orders');
       } else if (method === 'stripe') {
@@ -117,6 +133,9 @@ const PlaceOrder = () => {
       } else if (method === 'payhere') {
         // Handle PayHere payment
         const paymentResponse = await ApiService.createPayHerePayment(orderId, totalAmount);
+        
+        // Clear cart immediately for PayHere (will be handled on success/cancel)
+        dispatch(clearCart());
         
         // Create PayHere payment form and submit
         const form = document.createElement('form');
@@ -136,20 +155,12 @@ const PlaceOrder = () => {
         form.submit();
       }
 
-      // Clear cart after successful order
-      dispatch(clearCart());
-
     } catch (error) {
       console.error('Order placement error:', error);
       toast.error(error.message || 'Failed to place order');
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleStripeSuccess = () => {
-    setShowStripePayment(false);
-    navigate('/orders');
   };
 
   const handleStripeCancel = () => {

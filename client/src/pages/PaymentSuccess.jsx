@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useDispatch } from 'react-redux';
-import { clearCart } from '../store/slices/cartSlice';
+import { clearCart, clearCartOnServer } from '../store/slices/cartSlice';
 import { toast } from 'react-toastify';
 
 const PaymentSuccess = () => {
@@ -10,18 +10,29 @@ const PaymentSuccess = () => {
   const dispatch = useDispatch();
 
   useEffect(() => {
-    // Clear cart on successful payment
-    dispatch(clearCart());
-    
-    // Show success message
-    toast.success('Payment completed successfully!');
-    
-    // Redirect to orders page after 3 seconds
-    const timer = setTimeout(() => {
-      navigate('/orders');
-    }, 3000);
+    const handlePaymentSuccess = async () => {
+      try {
+        // Clear cart on server first
+        await dispatch(clearCartOnServer()).unwrap();
+      } catch (error) {
+        console.warn('Failed to clear cart on server:', error);
+      }
+      
+      // Clear local cart
+      dispatch(clearCart());
+      
+      // Show success message
+      toast.success('Payment completed successfully!');
+      
+      // Redirect to orders page after 3 seconds
+      const timer = setTimeout(() => {
+        navigate('/orders');
+      }, 3000);
 
-    return () => clearTimeout(timer);
+      return () => clearTimeout(timer);
+    };
+
+    handlePaymentSuccess();
   }, [navigate, dispatch]);
 
   return (

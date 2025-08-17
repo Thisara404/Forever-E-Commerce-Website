@@ -44,20 +44,22 @@ const registerUser = async (req, res) => {
     const responseData = {
       success: true,
       message: 'User registered successfully',
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        role: user.role
-      },
-      token
+      data: {  // Important: data should contain token and user
+        user: {
+          id: user._id,
+          name: user.name,
+          email: user.email,
+          role: user.role
+        },
+        token
+      }
     };
 
-    console.log('Register response:', responseData); // Debug log
+    console.log('✅ Sending registration response:', responseData); // Debug log
     res.status(201).json(responseData);
 
   } catch (error) {
-    console.error('Registration error:', error);
+    console.error('❌ Registration error:', error);
     res.status(500).json({
       success: false,
       message: 'Server error during registration'
@@ -117,20 +119,22 @@ const loginUser = async (req, res) => {
     const responseData = {
       success: true,
       message: 'Login successful',
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        role: user.role
-      },
-      token
+      data: {  // Important: data should contain token and user
+        user: {
+          id: user._id,
+          name: user.name,
+          email: user.email,
+          role: user.role
+        },
+        token
+      }
     };
 
-    console.log('Login response:', responseData); // Debug log
+    console.log('✅ Sending login response:', responseData); // Debug log
     res.status(200).json(responseData);
 
   } catch (error) {
-    console.error('Login error:', error);
+    console.error('❌ Login error:', error);
     res.status(500).json({
       success: false,
       message: 'Server error during login'

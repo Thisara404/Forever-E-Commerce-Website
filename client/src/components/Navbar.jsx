@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { useDispatch } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import { logout } from '../store/slices/authSlice';
+import { clearCart, resetCartState, clearCartOnServer } from '../store/slices/cartSlice'; // Add clearCartOnServer
 import { setShowSearch } from '../store/slices/uiSlice';
 import { useAuth, useCart, useUI } from '../hooks/useReduxSelectors';
 
@@ -15,12 +16,44 @@ const NavBar = () => {
   
   // Replace Context with Redux hooks
   const { user, token } = useAuth();
-  const { getCartCount } = useCart();
+  const { cartItems } = useCart();
   const { showSearch } = useUI();
 
-  const handleLogout = () => {
+  const getCartCount = () => {
+    let totalCount = 0;
+    for (const items in cartItems) {
+      for (const item in cartItems[items]) {
+        try {
+          if (cartItems[items][item] > 0) {
+            totalCount += cartItems[items][item];
+          }
+        } catch (error) {
+          console.error('Error calculating cart count:', error);
+        }
+      }
+    }
+    return totalCount;
+  };
+
+  const handleLogout = async () => {
+    try {
+      // Clear cart on server first
+      await dispatch(clearCartOnServer()).unwrap();
+    } catch (error) {
+      console.warn('Failed to clear cart on server during logout');
+    }
+    
+    // Clear local cart state
+    dispatch(resetCartState());
+    
+    // Logout user
     dispatch(logout());
+    
+    // Navigate to home
     navigate('/');
+    
+    // Close mobile menu
+    setVisible(false);
   };
 
   const handleProfileClick = () => {
@@ -122,11 +155,8 @@ const NavBar = () => {
           
           {token ? (
             <>
-              <NavLink onClick={() => setVisible(false)} className='py-2 pl-6 border' to='/orders'>ORDERS</NavLink>
-              {user && user.role === 'admin' && (
-                <NavLink onClick={() => setVisible(false)} className='py-2 pl-6 border' to='/admin'>ADMIN</NavLink>
-              )}
-              <p onClick={() => { handleLogout(); setVisible(false); }} className='py-2 pl-6 border cursor-pointer'>LOGOUT</p>
+              <NavLink onClick={() => setVisible(false)} className='py-2 pl-6 border' to='/orders'>MY ORDERS</NavLink>
+              <p onClick={handleLogout} className='py-2 pl-6 border cursor-pointer'>LOGOUT</p>
             </>
           ) : (
             <NavLink onClick={() => setVisible(false)} className='py-2 pl-6 border' to='/login'>LOGIN</NavLink>

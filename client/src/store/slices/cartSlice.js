@@ -2,44 +2,51 @@ import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import ApiService from '../../services/api';
 import { toast } from 'react-toastify';
 
-// Async thunks
+const initialState = {
+  items: {},
+  loading: false,
+  error: null,
+  lastUpdated: null,
+};
+
+// Fetch cart from server
 export const fetchCart = createAsyncThunk(
   'cart/fetchCart',
   async (_, { rejectWithValue, getState }) => {
     try {
       const { auth } = getState();
       if (!auth.token) {
-        return { items: {} };
+        return { items: {} }; // Return empty cart if not authenticated
       }
-      
+
       const response = await ApiService.getCart();
-      const backendCart = response.data;
+      const backendCart = response.data.items || [];
       
+      // Convert backend cart format to frontend format
       const frontendCart = {};
       let invalidItemsCount = 0;
-      
-      if (backendCart && backendCart.items && Array.isArray(backendCart.items)) {
-        backendCart.items.forEach(item => {
-          if (item && item.productId && item.size && item.quantity) {
-            const productId = item.productId._id || item.productId;
-            
-            if (!frontendCart[productId]) {
-              frontendCart[productId] = {};
-            }
-            frontendCart[productId][item.size] = item.quantity;
-          } else {
-            invalidItemsCount++;
+
+      backendCart.forEach(item => {
+        if (item.productId && item.productId._id && item.size && item.quantity > 0) {
+          const productId = item.productId._id;
+          if (!frontendCart[productId]) {
+            frontendCart[productId] = {};
           }
-        });
-      }
-      
+          frontendCart[productId][item.size] = item.quantity;
+        } else {
+          invalidItemsCount++;
+        }
+      });
+
       if (invalidItemsCount > 0) {
         console.warn(`⚠️ Found ${invalidItemsCount} invalid cart items`);
       }
       
       return { items: frontendCart };
     } catch (error) {
-      return rejectWithValue(error.message);
+      // If cart fetch fails, return empty cart instead of error
+      console.warn('Cart fetch failed, using empty cart:', error.message);
+      return { items: {} };
     }
   }
 );
@@ -90,16 +97,32 @@ export const updateCartItem = createAsyncThunk(
   }
 );
 
+export const clearCartOnServer = createAsyncThunk(
+  'cart/clearCartOnServer',
+  async (_, { rejectWithValue, getState }) => {
+    try {
+      const { auth } = getState();
+      if (!auth.token) {
+        return; // No need to clear server cart if not authenticated
+      }
+
+      await ApiService.clearCart();
+      return {};
+    } catch (error) {
+      console.warn('Failed to clear cart on server:', error.message);
+      return {}; // Return empty cart even if server clear fails
+    }
+  }
+);
+
 const cartSlice = createSlice({
   name: 'cart',
-  initialState: {
-    items: {},
-    loading: false,
-    error: null,
-  },
+  initialState,
   reducers: {
     clearCart: (state) => {
       state.items = {};
+      state.error = null;
+      state.lastUpdated = Date.now();
     },
     updateLocalCart: (state, action) => {
       const { itemId, size, quantity } = action.payload;
@@ -117,19 +140,29 @@ const cartSlice = createSlice({
         }
         state.items[itemId][size] = quantity;
       }
+      state.lastUpdated = Date.now();
+    },
+    // New reducer to reset cart state completely
+    resetCartState: (state) => {
+      return { ...initialState };
     },
   },
   extraReducers: (builder) => {
     builder
+      .addCase(fetchCart.pending, (state) => {
+        state.loading = true;
+      })
       .addCase(fetchCart.fulfilled, (state, action) => {
         state.items = action.payload.items;
         state.loading = false;
         state.error = null;
+        state.lastUpdated = Date.now();
       })
       .addCase(fetchCart.rejected, (state, action) => {
         state.items = {};
         state.loading = false;
         state.error = action.payload;
+        state.lastUpdated = Date.now();
       })
       .addCase(addToCart.fulfilled, (state, action) => {
         const { itemId, size, quantity } = action.payload;
@@ -141,6 +174,7 @@ const cartSlice = createSlice({
         } else {
           state.items[itemId][size] = quantity;
         }
+        state.lastUpdated = Date.now();
       })
       .addCase(updateCartItem.fulfilled, (state, action) => {
         const { itemId, size, quantity } = action.payload;
@@ -157,9 +191,14 @@ const cartSlice = createSlice({
           }
           state.items[itemId][size] = quantity;
         }
+        state.lastUpdated = Date.now();
+      })
+      .addCase(clearCartOnServer.fulfilled, (state) => {
+        state.items = {};
+        state.lastUpdated = Date.now();
       });
   },
 });
 
-export const { clearCart, updateLocalCart } = cartSlice.actions;
+export const { clearCart, updateLocalCart, resetCartState } = cartSlice.actions;
 export default cartSlice.reducer;
