@@ -138,9 +138,15 @@ class ApiService {
   }
 
   async createStripePayment(orderId, amount) {
+    console.log('🔄 Creating Stripe payment intent...');
+    
     return this.fetchWithAuth('/payments/stripe/create-payment-intent', {
       method: 'POST',
-      body: JSON.stringify({ orderId, amount, currency: 'lkr' }),
+      body: JSON.stringify({ 
+        orderId, 
+        amount: Number(amount),
+        currency: 'lkr'
+      }),
     });
   }
 
@@ -151,10 +157,17 @@ class ApiService {
     });
   }
 
-  async confirmStripePayment(paymentIntentId, orderId) {
+  async createStripePaymentIntent(data) {
+    return this.fetchWithAuth('/payments/stripe/create-payment-intent', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async confirmStripePayment(data) {
     return this.fetchWithAuth('/payments/stripe/confirm', {
       method: 'POST',
-      body: JSON.stringify({ paymentIntentId, orderId }),
+      body: JSON.stringify(data),
     });
   }
 }

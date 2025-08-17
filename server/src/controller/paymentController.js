@@ -3,6 +3,7 @@ const Order = require('../model/Order');
 const Cart = require('../model/Cart');
 const Product = require('../model/Product');
 const { payHereConfig, generatePayHereHash, verifyPayHereHash } = require('../config/payhere');
+const { confirmOrderPayment, cancelPaymentPendingOrder } = require('./orderController');
 
 // @desc    Create Stripe Payment Intent
 // @route   POST /api/payments/stripe/create-payment-intent
@@ -22,8 +23,8 @@ const createStripePaymentIntent = async (req, res) => {
       });
     }
 
-    // **NEW: Check minimum amount for Stripe**
-    const minimumAmountLKR = 200; // Approximately $0.60 USD
+    // Check minimum amount for Stripe
+    const minimumAmountLKR = 200;
     if (amount < minimumAmountLKR) {
       return res.status(400).json({
         success: false,
@@ -54,6 +55,14 @@ const createStripePaymentIntent = async (req, res) => {
       return res.status(403).json({
         success: false,
         message: 'Access denied'
+      });
+    }
+
+    // **NEW: Check if order is in payment_pending status**
+    if (order.orderStatus !== 'payment_pending') {
+      return res.status(400).json({
+        success: false,
+        message: 'Order is not in payment pending status'
       });
     }
 
@@ -89,7 +98,6 @@ const createStripePaymentIntent = async (req, res) => {
   } catch (error) {
     console.error('Stripe payment intent error:', error);
     
-    // Handle specific Stripe errors
     if (error.type === 'StripeInvalidRequestError' && error.code === 'amount_too_small') {
       return res.status(400).json({
         success: false,
@@ -103,11 +111,7 @@ const createStripePaymentIntent = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Failed to create payment intent',
-      error: error.message,
-      debug: process.env.NODE_ENV === 'development' ? {
-        stack: error.stack,
-        stripeConfigured: !!process.env.STRIPE_SECRET_KEY
-      } : undefined
+      error: error.message
     });
   }
 };
@@ -130,32 +134,15 @@ const confirmStripePayment = async (req, res) => {
     const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
 
     if (paymentIntent.status === 'succeeded') {
-      // Update order with payment information
-      const order = await Order.findById(orderId);
-      if (!order) {
-        return res.status(404).json({
-          success: false,
-          message: 'Order not found'
-        });
-      }
-
-      order.isPaid = true;
-      order.paidAt = new Date();
-      order.paymentInfo = {
+      // **NEW: Use the new confirmOrderPayment function**
+      const paymentInfo = {
         id: paymentIntent.id,
         status: paymentIntent.status,
         update_time: new Date().toISOString(),
         email_address: req.user.email
       };
-      order.orderStatus = 'confirmed';
 
-      await order.save();
-
-      // Clear user's cart
-      await Cart.findOneAndUpdate(
-        { userId: req.user._id },
-        { items: [], totalAmount: 0, totalItems: 0 }
-      );
+      const order = await confirmOrderPayment(orderId, paymentInfo);
 
       res.status(200).json({
         success: true,
@@ -163,6 +150,9 @@ const confirmStripePayment = async (req, res) => {
         order
       });
     } else {
+      // **NEW: Cancel the order if payment failed**
+      await cancelPaymentPendingOrder(orderId);
+      
       res.status(400).json({
         success: false,
         message: 'Payment not successful',
@@ -177,6 +167,70 @@ const confirmStripePayment = async (req, res) => {
       message: 'Payment confirmation failed',
       error: error.message
     });
+  }
+};
+
+// Update PayHere notification handler
+const payHereNotification = async (req, res) => {
+  try {
+    const {
+      merchant_id,
+      order_id,
+      payhere_amount,
+      payhere_currency,
+      status_code,
+      md5sig,
+      method,
+      status_message,
+      card_holder_name,
+      card_no
+    } = req.body;
+
+    console.log('PayHere Notification:', req.body);
+
+    // Verify the hash
+    const isValidHash = verifyPayHereHash({
+      merchant_id,
+      order_id,
+      payhere_amount,
+      payhere_currency,
+      status_code,
+      md5sig,
+      merchant_secret: payHereConfig.merchant_secret
+    });
+
+    if (!isValidHash) {
+      console.error('Invalid PayHere hash');
+      return res.status(400).send('Invalid hash');
+    }
+
+    if (status_code === '2') { // Success
+      // **NEW: Use confirmOrderPayment function**
+      const paymentInfo = {
+        id: `payhere_${Date.now()}`,
+        status: 'completed',
+        update_time: new Date().toISOString(),
+        email_address: order.shippingAddress.email,
+        method: method,
+        card_holder_name: card_holder_name,
+        card_no: card_no ? `****-****-****-${card_no.slice(-4)}` : null
+      };
+
+      await confirmOrderPayment(order_id, paymentInfo);
+      console.log('Payment successful for order:', order_id);
+
+    } else { // Failed or cancelled
+      // **NEW: Cancel the order**
+      await cancelPaymentPendingOrder(order_id);
+      console.log('Payment failed for order:', order_id, 'Message:', status_message);
+    }
+
+    // Send success response to PayHere
+    res.status(200).send('OK');
+
+  } catch (error) {
+    console.error('PayHere notification error:', error);
+    res.status(500).send('Internal Server Error');
   }
 };
 
@@ -268,104 +322,6 @@ const createPayHerePayment = async (req, res) => {
       message: 'Failed to create PayHere payment',
       error: error.message
     });
-  }
-};
-
-// @desc    PayHere Payment Notification (Webhook)
-// @route   POST /api/payments/payhere/notify
-// @access  Public (PayHere webhook)
-const payHereNotification = async (req, res) => {
-  try {
-    const {
-      merchant_id,
-      order_id,
-      payhere_amount,
-      payhere_currency,
-      status_code,
-      md5sig,
-      custom_1,
-      custom_2,
-      method,
-      status_message,
-      card_holder_name,
-      card_no,
-      card_expiry
-    } = req.body;
-
-    console.log('PayHere Notification:', req.body);
-
-    // Verify the hash
-    const isValidHash = verifyPayHereHash({
-      merchant_id,
-      order_id,
-      payhere_amount,
-      payhere_currency,
-      status_code,
-      md5sig,
-      merchant_secret: payHereConfig.merchant_secret
-    });
-
-    if (!isValidHash) {
-      console.error('Invalid PayHere hash');
-      return res.status(400).send('Invalid hash');
-    }
-
-    // Find the order
-    const order = await Order.findById(order_id);
-    if (!order) {
-      console.error('Order not found:', order_id);
-      return res.status(404).send('Order not found');
-    }
-
-    // Update order based on status
-    if (status_code === '2') { // Success
-      order.isPaid = true;
-      order.paidAt = new Date();
-      order.paymentInfo = {
-        id: `payhere_${Date.now()}`,
-        status: 'completed',
-        update_time: new Date().toISOString(),
-        email_address: order.shippingAddress.email,
-        method: method,
-        card_holder_name: card_holder_name,
-        card_no: card_no ? `****-****-****-${card_no.slice(-4)}` : null
-      };
-      order.orderStatus = 'confirmed';
-
-      // Clear user's cart
-      await Cart.findOneAndUpdate(
-        { userId: order.userId },
-        { items: [], totalAmount: 0, totalItems: 0 }
-      );
-
-      console.log('Payment successful for order:', order_id);
-    } else if (status_code === '0') { // Pending
-      order.paymentInfo = {
-        id: `payhere_${Date.now()}`,
-        status: 'pending',
-        update_time: new Date().toISOString(),
-        email_address: order.shippingAddress.email
-      };
-      console.log('Payment pending for order:', order_id);
-    } else { // Failed or cancelled
-      order.paymentInfo = {
-        id: `payhere_${Date.now()}`,
-        status: 'failed',
-        update_time: new Date().toISOString(),
-        email_address: order.shippingAddress.email,
-        error_message: status_message
-      };
-      console.log('Payment failed for order:', order_id, 'Message:', status_message);
-    }
-
-    await order.save();
-
-    // Send success response to PayHere
-    res.status(200).send('OK');
-
-  } catch (error) {
-    console.error('PayHere notification error:', error);
-    res.status(500).send('Internal Server Error');
   }
 };
 

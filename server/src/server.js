@@ -100,6 +100,9 @@ app.all('*', (req, res) => {
 // Error handling middleware (should be last)
 app.use(errorHandler);
 
+// Cleanup orders utility
+require('./utils/cleanupOrders');
+
 const PORT = process.env.PORT || 5000;
 
 app.listen(PORT, () => {

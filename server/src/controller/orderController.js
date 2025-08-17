@@ -9,7 +9,6 @@ const { sendOrderConfirmationEmail, sendOrderStatusUpdateEmail } = require('../u
 // @access  Private
 const createOrder = async (req, res) => {
   try {
-    // Check for validation errors
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       return res.status(400).json({
@@ -41,7 +40,6 @@ const createOrder = async (req, res) => {
         });
       }
 
-      // Check if sufficient stock is available
       if (product.stockQuantity < item.quantity) {
         return res.status(400).json({
           success: false,
@@ -65,7 +63,33 @@ const createOrder = async (req, res) => {
     const shippingFee = 10; // Fixed shipping fee
     const totalAmount = subtotal + shippingFee;
 
-    // Create order
+    // **NEW: Set order status based on payment method**
+    let orderStatus;
+    let isPaid;
+    let shouldUpdateInventory = false;
+
+    switch (paymentMethod) {
+      case 'cod':
+        orderStatus = 'confirmed'; // COD orders are confirmed immediately
+        isPaid = false;
+        shouldUpdateInventory = true; // Reserve stock for COD
+        break;
+      
+      case 'stripe':
+      case 'payhere':
+        orderStatus = 'payment_pending'; // Wait for payment confirmation
+        isPaid = false;
+        shouldUpdateInventory = false; // Don't reserve stock until payment is confirmed
+        break;
+      
+      default:
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid payment method'
+        });
+    }
+
+    // Create order with appropriate status
     const order = await Order.create({
       userId: req.user._id,
       items: orderItems,
@@ -75,22 +99,30 @@ const createOrder = async (req, res) => {
       subtotal,
       shippingFee,
       totalAmount,
-      isPaid: paymentMethod === 'cod' ? false : false, // Will be updated after payment
-      paidAt: paymentMethod === 'cod' ? null : null
+      orderStatus,
+      isPaid,
+      paidAt: null
     });
 
-    // For COD orders, update inventory immediately
-    if (paymentMethod === 'cod') {
+    // Only update inventory for COD orders
+    if (shouldUpdateInventory) {
       await updateInventory(orderItems);
+      
+      // Clear user's cart for COD
+      await Cart.findOneAndUpdate(
+        { userId: req.user._id },
+        { items: [], totalAmount: 0, totalItems: 0 }
+      );
       
       // Send order confirmation email for COD
       try {
         await sendOrderConfirmationEmail(req.user.email, order);
       } catch (emailError) {
         console.error('Email sending failed:', emailError);
-        // Don't fail the order creation if email fails
       }
     }
+
+    console.log(`✅ Order created with status: ${orderStatus} for payment method: ${paymentMethod}`);
 
     res.status(201).json({
       success: true,
@@ -107,6 +139,79 @@ const createOrder = async (req, res) => {
   }
 };
 
+// **NEW: Function to confirm payment and update order**
+const confirmOrderPayment = async (orderId, paymentInfo) => {
+  try {
+    const order = await Order.findById(orderId);
+    if (!order) {
+      throw new Error('Order not found');
+    }
+
+    if (order.orderStatus !== 'payment_pending') {
+      throw new Error('Order is not in payment pending status');
+    }
+
+    // Update order status to confirmed
+    order.orderStatus = 'confirmed';
+    order.isPaid = true;
+    order.paidAt = new Date();
+    order.paymentInfo = paymentInfo;
+
+    await order.save();
+
+    // Now update inventory since payment is confirmed
+    await updateInventory(order.items);
+
+    // Clear user's cart
+    await Cart.findOneAndUpdate(
+      { userId: order.userId },
+      { items: [], totalAmount: 0, totalItems: 0 }
+    );
+
+    // Send confirmation email
+    try {
+      const User = require('../model/User');
+      const user = await User.findById(order.userId);
+      await sendOrderConfirmationEmail(user.email, order);
+    } catch (emailError) {
+      console.error('Email sending failed:', emailError);
+    }
+
+    console.log(`✅ Order ${orderId} payment confirmed and inventory updated`);
+    return order;
+
+  } catch (error) {
+    console.error('Order payment confirmation error:', error);
+    throw error;
+  }
+};
+
+// **NEW: Function to cancel payment pending orders**
+const cancelPaymentPendingOrder = async (orderId) => {
+  try {
+    const order = await Order.findById(orderId);
+    if (!order) {
+      throw new Error('Order not found');
+    }
+
+    if (order.orderStatus === 'payment_pending') {
+      order.orderStatus = 'cancelled';
+      order.paymentInfo = {
+        ...order.paymentInfo,
+        status: 'cancelled',
+        cancelled_at: new Date().toISOString()
+      };
+      await order.save();
+      console.log(`❌ Order ${orderId} cancelled due to payment failure`);
+    }
+
+    return order;
+  } catch (error) {
+    console.error('Order cancellation error:', error);
+    throw error;
+  }
+};
+
 // @desc    Get user's orders
 // @route   GET /api/orders
 // @access  Private
@@ -114,23 +219,23 @@ const getUserOrders = async (req, res) => {
   try {
     const { page = 1, limit = 10, status } = req.query;
 
-    // Build filter
+    // Build filter - exclude payment_pending orders for regular users
     const filter = { userId: req.user._id };
     if (status) {
       filter.orderStatus = status;
+    } else {
+      // By default, exclude payment_pending orders from user view
+      filter.orderStatus = { $ne: 'payment_pending' };
     }
 
-    // Calculate pagination
     const skip = (page - 1) * limit;
 
-    // Get orders
     const orders = await Order.find(filter)
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(Number(limit))
       .populate('items.productId', 'name image');
 
-    // Get total count
     const totalOrders = await Order.countDocuments(filter);
     const totalPages = Math.ceil(totalOrders / limit);
 
@@ -309,21 +414,25 @@ const cancelOrder = async (req, res) => {
 // @access  Private (Admin only)
 const getAllOrders = async (req, res) => {
   try {
-    const { page = 1, limit = 20, status, userId } = req.query;
+    const { page = 1, limit = 20, status, userId, includePending = false } = req.query;
 
-    // Build filter
+    // **UPDATED: Build filter to exclude payment_pending by default**
     const filter = {};
-    if (status) {
+    
+    if (includePending !== 'true') {
+      filter.orderStatus = { $ne: 'payment_pending' };
+    }
+    
+    if (status && status !== 'payment_pending') {
       filter.orderStatus = status;
     }
+    
     if (userId) {
       filter.userId = userId;
     }
 
-    // Calculate pagination
     const skip = (page - 1) * limit;
 
-    // Get orders
     const orders = await Order.find(filter)
       .sort({ createdAt: -1 })
       .skip(skip)
@@ -331,20 +440,8 @@ const getAllOrders = async (req, res) => {
       .populate('userId', 'name email')
       .populate('items.productId', 'name image');
 
-    // Get total count
     const totalOrders = await Order.countDocuments(filter);
     const totalPages = Math.ceil(totalOrders / limit);
-
-    // Calculate order statistics
-    const orderStats = await Order.aggregate([
-      {
-        $group: {
-          _id: '$orderStatus',
-          count: { $sum: 1 },
-          totalValue: { $sum: '$totalAmount' }
-        }
-      }
-    ]);
 
     res.status(200).json({
       success: true,
@@ -356,8 +453,7 @@ const getAllOrders = async (req, res) => {
           totalOrders,
           hasNextPage: page < totalPages,
           hasPrevPage: page > 1
-        },
-        statistics: orderStats
+        }
       }
     });
 
@@ -367,27 +463,6 @@ const getAllOrders = async (req, res) => {
       success: false,
       message: 'Server error while fetching orders'
     });
-  }
-};
-
-// Add this to your orderController.js after payment verification
-const completeOrderAfterPayment = async (orderId, paymentInfo) => {
-  try {
-    const order = await Order.findById(orderId).populate('userId', 'email');
-    if (!order) {
-      throw new Error('Order not found');
-    }
-
-    // Update inventory
-    await updateInventory(order.items);
-
-    // Send confirmation email
-    await sendOrderConfirmationEmail(order.userId.email, order);
-
-    return order;
-  } catch (error) {
-    console.error('Order completion error:', error);
-    throw error;
   }
 };
 
@@ -401,7 +476,6 @@ const updateInventory = async (orderItems) => {
       }
     );
 
-    // Check if product is out of stock
     const product = await Product.findById(item.productId);
     if (product.stockQuantity <= 0) {
       product.inStock = false;
@@ -430,5 +504,6 @@ module.exports = {
   updateOrderStatus,
   cancelOrder,
   getAllOrders,
-  completeOrderAfterPayment
+  confirmOrderPayment, // NEW
+  cancelPaymentPendingOrder // NEW
 };

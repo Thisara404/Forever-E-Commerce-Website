@@ -36,13 +36,14 @@ const orderSchema = new mongoose.Schema({
   paymentMethod: {
     type: String,
     required: true,
-    enum: ['stripe', 'payhere', 'cod'] // Updated to include PayHere
+    enum: ['stripe', 'payhere', 'cod']
   },
   paymentInfo: {
     id: String,
     status: String,
     update_time: String,
-    email_address: String
+    email_address: String,
+    cancelled_at: String
   },
   subtotal: {
     type: Number,
@@ -58,7 +59,7 @@ const orderSchema = new mongoose.Schema({
   },
   orderStatus: {
     type: String,
-    enum: ['pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled'],
+    enum: ['payment_pending', 'pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled'],
     default: 'pending'
   },
   isPaid: {
