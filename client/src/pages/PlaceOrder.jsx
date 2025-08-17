@@ -1,11 +1,14 @@
-import React, { useContext, useState } from 'react';
+import React, { useState } from 'react';
 import { toast } from 'react-toastify';
 import Title from '../components/Title';
 import CartTotal from '../components/CartTotal';
 import StripePayment from '../components/StripePayment';
 import { assets } from '../assets/assets';
-import { ShopContext } from '../context/ShopContext';
 import ApiService from '../services/api';
+import { useNavigate } from 'react-router-dom';
+import { useDispatch } from 'react-redux';
+import { clearCart } from '../store/slices/cartSlice';
+import { useAuth, useCart, useProducts } from '../hooks/useReduxSelectors';
 
 const PlaceOrder = () => {
   const [method, setMethod] = useState('cod');
@@ -24,7 +27,13 @@ const PlaceOrder = () => {
   const [showStripePayment, setShowStripePayment] = useState(false);
   const [currentOrderId, setCurrentOrderId] = useState(null);
 
-  const { navigate, cartItems, products, getCartAmount, delivery_fee, user, token } = useContext(ShopContext);
+  const navigate = useNavigate();
+  const dispatch = useDispatch();
+  const { user, token } = useAuth();
+  const { cartItems, getCartAmount } = useCart();
+  const { products } = useProducts();
+
+  const delivery_fee = 10;
 
   const onChangeHandler = (event) => {
     const name = event.target.name;
@@ -127,6 +136,9 @@ const PlaceOrder = () => {
         form.submit();
       }
 
+      // Clear cart after successful order
+      dispatch(clearCart());
+
     } catch (error) {
       console.error('Order placement error:', error);
       toast.error(error.message || 'Failed to place order');
@@ -162,10 +174,11 @@ const PlaceOrder = () => {
 
   return (
     <form onSubmit={onSubmitHandler} className='flex flex-col sm:flex-row justify-between gap-4 pt-5 sm:pt-14 min-h-[80vh] border-t'>
-      {/* left side*/}
+      {/* ----------- Left Side ---------------- */}
       <div className='flex flex-col gap-4 w-full sm:max-w-[480px]'>
+
         <div className='text-xl sm:text-2xl my-3'>
-          <Title text1={'DELIVERY'} text2={'INFORMATION'}/>
+          <Title text1={'DELIVERY'} text2={'INFORMATION'} />
         </div>
         <div className='flex gap-3'>
           <input 
@@ -216,7 +229,6 @@ const PlaceOrder = () => {
             placeholder='City'
           />
           <input 
-            required 
             onChange={onChangeHandler} 
             name='state' 
             value={formData.state}
@@ -236,7 +248,6 @@ const PlaceOrder = () => {
             placeholder='Zipcode'
           />
           <input 
-            required 
             onChange={onChangeHandler} 
             name='country' 
             value={formData.country}
@@ -256,8 +267,9 @@ const PlaceOrder = () => {
         />
       </div>
 
-      {/* right side */}
+      {/* ------------- Right Side ------------------ */}
       <div className='mt-8'>
+
         <div className='mt-8 min-w-80'>
           <CartTotal />
         </div>
@@ -272,7 +284,7 @@ const PlaceOrder = () => {
             </div>
             <div onClick={()=>setMethod('payhere')} className='flex items-center gap-3 border p-2 px-3 cursor-pointer'>
               <p className={`min-w-3.5 h-3.5 border rounded-full ${method === 'payhere' ? 'bg-green-400' : ''}`}></p>
-              <p className='text-gray-500 text-sm font-medium mx-4'>PAYHERE</p>
+              <img className='h-5 mx-4' src={assets.razorpay_logo} alt="" />
             </div>
             <div onClick={()=>setMethod('cod')} className='flex items-center gap-3 border p-2 px-3 cursor-pointer'>
               <p className={`min-w-3.5 h-3.5 border rounded-full ${method === 'cod' ? 'bg-green-400' : ''}`}></p>
@@ -282,7 +294,7 @@ const PlaceOrder = () => {
 
           <div className='w-full text-end mt-8'>
             <button 
-              type='submit'
+              type="submit" 
               disabled={loading}
               className={`bg-black text-white px-16 py-3 text-sm ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
             >

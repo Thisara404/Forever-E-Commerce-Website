@@ -1,10 +1,11 @@
-import React, { useContext } from 'react'   
-import { ShopContext } from '../context/ShopContext';
+import React from 'react';
+import { useCart } from '../hooks/useReduxSelectors';
 import Title from './Title';
 
 const CartTotal = () => {
-
-    const {currency, delivery_fee, getCartAmount} = useContext(ShopContext);  
+  const { getCartAmount } = useCart();
+  const currency = 'LKR';
+  const delivery_fee = 10;
 
   return (
     <div className='w-full'>
@@ -32,4 +33,4 @@ const CartTotal = () => {
   )
 }
 
-export default CartTotal
+export default CartTotal;

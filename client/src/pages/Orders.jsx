@@ -1,13 +1,18 @@
-import React, { useContext, useEffect, useState } from 'react';
-import { ShopContext } from '../context/ShopContext';
-import Title from '../components/Title';
+import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../hooks/useReduxSelectors';
 import ApiService from '../services/api';
+import Title from '../components/Title';
 import { toast } from 'react-toastify';
 
 const Orders = () => {
-  const { currency, token, navigate } = useContext(ShopContext);
+  const navigate = useNavigate();
+  const { token } = useAuth();
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
+  
+  // Add currency constant
+  const currency = 'LKR';
 
   useEffect(() => {
     if (!token) {
@@ -15,7 +20,7 @@ const Orders = () => {
       return;
     }
     fetchOrders();
-  }, [token]);
+  }, [token, navigate]);
 
   const fetchOrders = async () => {
     try {

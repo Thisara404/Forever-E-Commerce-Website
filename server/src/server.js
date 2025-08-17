@@ -22,26 +22,41 @@ connectDB();
 const app = express();
 
 // Security middleware
-app.use(helmet());
+app.use(helmet({
+  crossOriginEmbedderPolicy: false,
+}));
 
-// Rate limiting
+// Rate limiting - UPDATED: Make it less restrictive for development
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // limit each IP to 100 requests per windowMs
+  max: 1000, // Increased from 100 to 1000 for development
   message: {
     success: false,
     message: 'Too many requests from this IP, please try again later.'
-  }
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
 });
 app.use('/api/', limiter);
 
-// CORS middleware with better error handling
+// CORS middleware - FIXED formatting
 app.use(cors({
-  origin: ['http://localhost:5173', 'http://127.0.0.1:5173'], // Add both localhost variations
+  origin: [
+    'http://localhost:5173', 
+    'http://127.0.0.1:5173',
+    'http://localhost:3000',
+    'http://127.0.0.1:3000'
+  ],
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-  optionsSuccessStatus: 200 // For legacy browser support
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+  allowedHeaders: [
+    'Content-Type', 
+    'Authorization', 
+    'X-Requested-With',
+    'Accept',
+    'Origin'
+  ],
+  optionsSuccessStatus: 200
 }));
 
 // Add preflight handling
@@ -71,18 +86,18 @@ app.use('/api/admin', adminRoutes);
 
 // Basic route
 app.get('/', (req, res) => {
-  res.json({ 
+  res.json({
+    success: true,
     message: 'Forever E-Commerce API is running!',
     version: '1.0.0',
-    environment: process.env.NODE_ENV || 'development',
-    stripe_configured: !!process.env.STRIPE_SECRET_KEY
+    timestamp: new Date().toISOString()
   });
 });
 
 // Health check route
 app.get('/api/health', (req, res) => {
-  res.json({ 
-    status: 'OK', 
+  res.json({
+    success: true,
     message: 'Server is healthy',
     timestamp: new Date().toISOString(),
     uptime: process.uptime()
@@ -106,7 +121,9 @@ require('./utils/cleanupOrders');
 const PORT = process.env.PORT || 5000;
 
 app.listen(PORT, () => {
-  console.log(`Server running in ${process.env.NODE_ENV || 'development'} mode on port ${PORT}`);
+  console.log(`✅ Server is running on port ${PORT}`);
+  console.log(`🌐 Frontend URL: ${process.env.CLIENT_URL || 'http://localhost:5173'}`);
+  console.log(`🔗 Health check: http://localhost:${PORT}/api/health`);
 });
 
 module.exports = app;

@@ -1,156 +1,115 @@
-import React, { useContext, useEffect, useState } from 'react';
-import { Outlet, Navigate, Link, useLocation } from 'react-router-dom';
-import { ShopContext } from '../../context/ShopContext';
-import { assets } from '../../assets/assets';
-import { ErrorBoundary } from 'react-error-boundary';
+import React, { useEffect, useState } from 'react';
+import { Outlet, useNavigate, useLocation, Link } from 'react-router-dom';
+import { useAuth } from '../../hooks/useReduxSelectors';
 
 const AdminLayout = () => {
-  const { user, loading, token } = useContext(ShopContext);
+  const navigate = useNavigate();
   const location = useLocation();
+  const { user, loading, token } = useAuth();
   const [error, setError] = useState(null);
 
-  console.log('🔍 AdminLayout state:', { 
-    loading, 
-    hasUser: !!user, 
-    userRole: user?.role,
-    hasToken: !!token 
-  });
+  useEffect(() => {
+    if (!loading) {
+      if (!token) {
+        navigate('/login');
+        return;
+      }
+      
+      if (!user || user.role !== 'admin') {
+        setError('Access denied. Admin privileges required.');
+        setTimeout(() => navigate('/'), 3000);
+        return;
+      }
+    }
+  }, [user, loading, token, navigate]);
 
-  // Show loading while authentication is being checked
   if (loading) {
     return (
-      <div className="flex justify-center items-center h-screen bg-gray-100">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading admin panel...</p>
-        </div>
+      <div className="flex justify-center items-center h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900"></div>
       </div>
     );
   }
 
-  // Check if user is not logged in at all
-  if (!token) {
-    console.log('❌ No token found, redirecting to login');
-    return <Navigate to="/login" replace />;
-  }
-
-  // Check if user data hasn't loaded yet but token exists
-  if (!user) {
-    console.log('⏳ Token exists but user not loaded yet, showing loading...');
+  if (error) {
     return (
-      <div className="flex justify-center items-center h-screen bg-gray-100">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Authenticating...</p>
-        </div>
+      <div className="flex flex-col items-center justify-center h-screen">
+        <div className="text-red-600 text-xl mb-4">{error}</div>
+        <button 
+          onClick={() => navigate('/')}
+          className="bg-blue-500 text-white px-4 py-2 rounded"
+        >
+          Go to Home
+        </button>
       </div>
     );
   }
 
-  // Check if user is not admin
-  if (user.role !== 'admin') {
-    console.log('❌ User is not admin:', user.role);
-    return (
-      <div className="flex justify-center items-center h-screen bg-gray-100">
-        <div className="text-center bg-white p-8 rounded-lg shadow-lg">
-          <div className="text-red-600 text-6xl mb-4">🚫</div>
-          <h2 className="text-2xl font-bold text-gray-800 mb-2">Access Denied</h2>
-          <p className="text-gray-600 mb-4">You don't have admin privileges to access this area.</p>
-          <Link 
-            to="/" 
-            className="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700"
-          >
-            Go to Store
-          </Link>
-        </div>
-      </div>
-    );
+  if (!user || user.role !== 'admin') {
+    return null;
   }
 
-  console.log('✅ Admin access granted for:', user.name);
-
-  const sidebarItems = [
-    { path: '/admin', label: 'Dashboard', icon: '📊' },
-    { path: '/admin/products', label: 'Products', icon: '📦' },
-    { path: '/admin/orders', label: 'Orders', icon: '📋' },
-    { path: '/admin/users', label: 'Users', icon: '👥' },
-    { path: '/admin/analytics', label: 'Analytics', icon: '📈' },
+  const navigation = [
+    { name: 'Dashboard', href: '/admin', icon: '📊' },
+    { name: 'Products', href: '/admin/products', icon: '📦' },
+    { name: 'Orders', href: '/admin/orders', icon: '📋' },
+    { name: 'Users', href: '/admin/users', icon: '👥' },
+    { name: 'Analytics', href: '/admin/analytics', icon: '📈' },
   ];
 
   return (
-    <div className="flex h-screen bg-gray-100">
-      {/* Sidebar */}
-      <div className="w-64 bg-white shadow-lg">
-        <div className="p-4 border-b">
-          <Link to="/" className="flex items-center">
-            <img src={assets.logo} alt="Logo" className="h-8" />
-            <span className="ml-2 text-lg font-semibold">Admin Panel</span>
-          </Link>
-        </div>
-        
-        <nav className="mt-4">
-          {sidebarItems.map((item) => (
-            <Link
-              key={item.path}
-              to={item.path}
-              className={`flex items-center px-4 py-3 text-gray-700 hover:bg-gray-100 transition-colors ${
-                location.pathname === item.path ? 'bg-gray-100 border-r-4 border-blue-500' : ''
-              }`}
-            >
-              <span className="text-xl mr-3">{item.icon}</span>
-              {item.label}
-            </Link>
-          ))}
-        </nav>
-
-        <div className="absolute bottom-4 left-4">
-          <Link
-            to="/"
-            className="flex items-center text-gray-600 hover:text-gray-800"
-          >
-            <span className="mr-2">🏠</span>
-            Back to Store
-          </Link>
-        </div>
-      </div>
-
-      {/* Main Content */}
-      <div className="flex-1 overflow-auto">
-        <header className="bg-white shadow-sm border-b p-4">
-          <div className="flex justify-between items-center">
-            <h1 className="text-2xl font-semibold text-gray-800">
-              Admin Dashboard
-            </h1>
-            <div className="flex items-center space-x-4">
-              <span className="text-gray-600">Welcome, {user.name}</span>
-              <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center text-white font-semibold">
-                {user.name.charAt(0).toUpperCase()}
-              </div>
+    <div className="min-h-screen bg-gray-100">
+      {/* Header */}
+      <header className="bg-white shadow">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between h-16">
+            <div className="flex items-center">
+              <h1 className="text-xl font-semibold text-gray-900">
+                Admin Dashboard
+              </h1>
             </div>
-          </div>
-        </header>
-
-        <main className="p-6">
-          {error ? (
-            <div className="bg-red-50 border border-red-200 p-4 rounded-lg">
-              <h3 className="text-red-800 font-semibold">Error Loading Content</h3>
-              <p className="text-red-600">{error}</p>
-              <button 
-                onClick={() => setError(null)}
-                className="mt-2 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
+            <div className="flex items-center space-x-4">
+              <span className="text-sm text-gray-700">
+                Welcome, {user?.name}
+              </span>
+              <button
+                onClick={() => navigate('/')}
+                className="text-gray-500 hover:text-gray-700"
               >
-                Try Again
+                Back to Store
               </button>
             </div>
-          ) : (
-            <ErrorBoundary 
-              FallbackComponent={({error}) => (
-                <div className="text-red-600">Error: {error.message}</div>
-              )}
-            >
-              <Outlet />
-            </ErrorBoundary>
-          )}
+          </div>
+        </div>
+      </header>
+
+      <div className="flex">
+        {/* Sidebar */}
+        <nav className="bg-white w-64 min-h-screen shadow">
+          <div className="p-4">
+            <ul className="space-y-2">
+              {navigation.map((item) => (
+                <li key={item.name}>
+                  <Link
+                    to={item.href}
+                    className={`flex items-center px-4 py-2 text-sm font-medium rounded-md ${
+                      location.pathname === item.href
+                        ? 'bg-blue-100 text-blue-700'
+                        : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                    }`}
+                  >
+                    <span className="mr-3">{item.icon}</span>
+                    {item.name}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </nav>
+
+        {/* Main content */}
+        <main className="flex-1 p-6">
+          <Outlet />
         </main>
       </div>
     </div>

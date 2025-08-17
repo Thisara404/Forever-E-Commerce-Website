@@ -1,14 +1,11 @@
-import React, { useContext } from 'react'
-import { ShopContext } from '../context/ShopContext'
-import { Link } from 'react-router-dom';    
+import React from 'react';
+import { Link } from 'react-router-dom';
 
-const ProductItem = ({id,image,name,price}) => {
-
-    const {currency} = useContext(ShopContext);
-
+const ProductItem = ({ id, image, name, price }) => {
+  const currency = 'LKR';
 
   return (
-    <Link className='text-gray-700 cursor-pointer' to={`/product/${id}`}>
+    <Link onClick={() => scrollTo(0, 0)} className='text-gray-700 cursor-pointer' to={`/product/${id}`}>
       <div className='overflow-hidden'>
         <img className='hover:scale-110 transition ease-in-out' src={image[0]} alt="" />
       </div>
@@ -18,4 +15,4 @@ const ProductItem = ({id,image,name,price}) => {
   )
 }
 
-export default ProductItem
+export default ProductItem;

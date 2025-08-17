@@ -1,15 +1,18 @@
-import React, { useContext, useEffect, useState, useMemo } from 'react'
-import { ShopContext } from '../context/ShopContext'
+import React, { useEffect, useState } from 'react'
 import { assets } from '../assets/assets';
 import Title from '../components/Title';
 import ProductItem from '../components/ProductItem';
 import ApiService from '../services/api';
+import { useDispatch } from 'react-redux';
+import { fetchProducts } from '../store/slices/productSlice';
+import { useProducts, useUI } from '../hooks/useReduxSelectors';
 
 const Collection = () => {
-    const { search, showSearch, loading: contextLoading } = useContext(ShopContext);
+    const dispatch = useDispatch();
+    const { products, loading: productsLoading } = useProducts();
+    const { search, showSearch } = useUI();
     const [showFilter, setShowFilter] = useState(false);
-    const [products, setProducts] = useState([]);
-    const [loading, setLoading] = useState(true);
+    const [filterProducts, setFilterProducts] = useState([]);
     const [category, setCategory] = useState([]);
     const [subCategory, setSubCategory] = useState([]);
     const [sortType, setSortType] = useState('relevant');
@@ -21,10 +24,8 @@ const Collection = () => {
     const [totalPages, setTotalPages] = useState(0);
 
     // Fetch products from backend with pagination
-    const fetchProducts = async () => {
+    const fetchProductsData = async () => {
         try {
-            setLoading(true);
-            
             // Build query parameters
             const params = {
                 page: currentPage,
@@ -57,7 +58,7 @@ const Collection = () => {
             const response = await ApiService.getProducts(params);
             
             if (response.success) {
-                setProducts(response.data.products || []);
+                setFilterProducts(response.data.products || []);
                 setTotalProducts(response.data.pagination?.totalProducts || 0);
                 setTotalPages(response.data.pagination?.totalPages || 0);
                 
@@ -69,23 +70,21 @@ const Collection = () => {
                 });
             } else {
                 console.error('❌ API response not successful:', response);
-                setProducts([]);
+                setFilterProducts([]);
                 setTotalProducts(0);
                 setTotalPages(0);
             }
         } catch (error) {
             console.error('❌ Error fetching products:', error);
-            setProducts([]);
+            setFilterProducts([]);
             setTotalProducts(0);
             setTotalPages(0);
-        } finally {
-            setLoading(false);
         }
     };
 
     // Fetch products when filters or pagination changes
     useEffect(() => {
-        fetchProducts();
+        fetchProductsData();
     }, [currentPage, category, subCategory, sortType, search, showSearch]);
 
     // Reset to first page when filters change
@@ -131,7 +130,7 @@ const Collection = () => {
         currentPage,
         productsPerPage,
         showPagination: totalPages > 1,
-        productsCount: products.length,
+        productsCount: filterProducts.length,
         category,
         subCategory,
         sortType
@@ -191,7 +190,17 @@ const Collection = () => {
         return pageNumbers;
     };
 
-    if (loading) {
+    // Fetch products on mount
+    useEffect(() => {
+        dispatch(fetchProducts());
+    }, [dispatch]);
+
+    // Keep existing filter logic
+    const applyFilter = () => {
+        // ...existing filter logic
+    };
+
+    if (productsLoading) {
         return (
             <div className='flex flex-col sm:flex-row gap-1 sm:gap-10 pt-10 border-t'>
                 <div className='min-w-60'>
@@ -368,8 +377,8 @@ const Collection = () => {
 
                 {/* Map products */}
                 <div className='grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 gap-y-6'>
-                    {products.length > 0 ? (
-                        products.map((item, index) => (
+                    {filterProducts.length > 0 ? (
+                        filterProducts.map((item, index) => (
                             <ProductItem 
                                 key={item._id || index} 
                                 name={item.name} 
@@ -447,7 +456,7 @@ const Collection = () => {
                         <p>Total Pages: {totalPages}</p>
                         <p>Current Page: {currentPage}</p>
                         <p>Products Per Page: {productsPerPage}</p>
-                        <p>Products Displayed: {products.length}</p>
+                        <p>Products Displayed: {filterProducts.length}</p>
                         <p>Show Pagination: {totalPages > 1 ? 'Yes' : 'No'}</p>
                         <p>Active Categories: {JSON.stringify(category)}</p>
                         <p>Active SubCategories: {JSON.stringify(subCategory)}</p>

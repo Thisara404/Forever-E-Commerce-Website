@@ -1,16 +1,17 @@
-import React, { useEffect, useContext } from 'react';
+import React, { useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { ShopContext } from '../context/ShopContext';
+import { useDispatch } from 'react-redux';
+import { clearCart } from '../store/slices/cartSlice';
 import { toast } from 'react-toastify';
 
 const PaymentSuccess = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { setCartItems } = useContext(ShopContext);
+  const dispatch = useDispatch();
 
   useEffect(() => {
     // Clear cart on successful payment
-    setCartItems({});
+    dispatch(clearCart());
     
     // Show success message
     toast.success('Payment completed successfully!');
@@ -21,7 +22,7 @@ const PaymentSuccess = () => {
     }, 3000);
 
     return () => clearTimeout(timer);
-  }, [navigate, setCartItems]);
+  }, [navigate, dispatch]);
 
   return (
     <div className="flex flex-col items-center justify-center min-h-[60vh] text-center">

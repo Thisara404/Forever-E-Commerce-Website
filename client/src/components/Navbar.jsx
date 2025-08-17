@@ -1,15 +1,26 @@
 import { assets } from '../assets/assets';
 import { Link, NavLink, useLocation } from 'react-router-dom';
-import React, { useContext, useState } from 'react';
-import { ShopContext } from '../context/ShopContext';
+import React, { useState } from 'react';
+import { useDispatch } from 'react-redux';
+import { useNavigate } from 'react-router-dom';
+import { logout } from '../store/slices/authSlice';
+import { setShowSearch } from '../store/slices/uiSlice';
+import { useAuth, useCart, useUI } from '../hooks/useReduxSelectors';
 
 const NavBar = () => {
   const [visible, setVisible] = useState(false);
-  const { setShowSearch, getCartCount, user, token, logout, navigate } = useContext(ShopContext);
+  const dispatch = useDispatch();
+  const navigate = useNavigate();
   const location = useLocation();
+  
+  // Replace Context with Redux hooks
+  const { user, token } = useAuth();
+  const { getCartCount } = useCart();
+  const { showSearch } = useUI();
 
   const handleLogout = () => {
-    logout();
+    dispatch(logout());
+    navigate('/');
   };
 
   const handleProfileClick = () => {
@@ -21,102 +32,83 @@ const NavBar = () => {
   };
 
   const handleSearchClick = () => {
-    // If not on collection page, navigate there first, then show search
     if (location.pathname !== '/collection') {
       navigate('/collection');
-      // Small delay to ensure navigation completes before showing search
       setTimeout(() => {
-        setShowSearch(true);
+        dispatch(setShowSearch(true));
       }, 100);
     } else {
-      setShowSearch(true);
+      dispatch(setShowSearch(true));
     }
   };
 
   return (
     <div className='flex items-center justify-between py-5 font-medium'>
-      <Link to='/'><img src={assets.logo} alt="logo" className='w-36'/></Link>
+      
+      <Link to='/'>
+        <img src={assets.logo} className='w-36' alt="" />
+      </Link>
 
-      <ul className='hidden sm:flex gap-5 text-gray-700'>
+      <ul className='hidden sm:flex gap-5 text-sm text-gray-700'>
         <NavLink to='/' className='flex flex-col items-center gap-1'>
           <p>HOME</p>
-          <hr className='w-2/4 border-none h-[1.5px] bg-gray-700 hidden'/>
+          <hr className='w-2/4 border-none h-[1.5px] bg-gray-700 hidden' />
         </NavLink>
         <NavLink to='/collection' className='flex flex-col items-center gap-1'>
           <p>COLLECTION</p>
-          <hr className='w-2/4 border-none h-[1.5px] bg-gray-700 hidden'/>
+          <hr className='w-2/4 border-none h-[1.5px] bg-gray-700 hidden' />
         </NavLink>
         <NavLink to='/about' className='flex flex-col items-center gap-1'>
           <p>ABOUT</p>
-          <hr className='w-2/4 border-none h-[1.5px] bg-gray-700 hidden'/>
-        </NavLink>  
+          <hr className='w-2/4 border-none h-[1.5px] bg-gray-700 hidden' />
+        </NavLink>
         <NavLink to='/contact' className='flex flex-col items-center gap-1'>
           <p>CONTACT</p>
-          <hr className='w-2/4 border-none h-[1.5px] bg-gray-700 hidden'/>
+          <hr className='w-2/4 border-none h-[1.5px] bg-gray-700 hidden' />
         </NavLink>
-        {/* ADMIN ACCESS - Show only for admin users */}
-        {user && user.role === 'admin' && (
-          <NavLink to='/admin' className='flex flex-col items-center gap-1 bg-gradient-to-r from-blue-500 to-purple-600 text-white px-3 py-1 rounded-md transition-all hover:from-blue-600 hover:to-purple-700'>
-            <p className="text-sm font-semibold">⚡ ADMIN</p>
-          </NavLink>
-        )}
       </ul>
 
       <div className='flex items-center gap-6'>
         <img 
           onClick={handleSearchClick} 
           src={assets.search_icon} 
-          alt="search" 
-          className='w-5 cursor-pointer hover:opacity-70 transition-opacity'
-          title="Search products"
+          className='w-5 cursor-pointer' 
+          alt="" 
         />
 
         <div className='group relative'>
           <img 
-            onClick={handleProfileClick}
+            onClick={handleProfileClick} 
+            className='w-5 cursor-pointer' 
             src={assets.profile_icon} 
             alt="" 
-            className='w-5 cursor-pointer'
           />
+          {/* Profile dropdown */}
           {token && (
             <div className='group-hover:block hidden absolute dropdown-menu right-0 pt-4'>
               <div className='flex flex-col gap-2 w-36 py-3 px-5 bg-slate-100 text-gray-500 rounded'>
-                <p className='cursor-pointer hover:text-black'>
-                  {user ? `Hi, ${user.name}` : 'My Profile'}
-                </p>
-                <Link to='/orders' className='cursor-pointer hover:text-black'>
-                  Orders
-                </Link>
-                {/* ADMIN PANEL ACCESS in dropdown */}
+                <p className='cursor-pointer hover:text-black'>My Profile</p>
+                <p onClick={() => navigate('/orders')} className='cursor-pointer hover:text-black'>Orders</p>
                 {user && user.role === 'admin' && (
-                  <Link to='/admin' className='cursor-pointer hover:text-black text-blue-600 font-semibold border-t pt-2'>
-                    🔧 Admin Panel
-                  </Link>
+                  <p onClick={() => navigate('/admin')} className='cursor-pointer hover:text-black'>Admin</p>
                 )}
-                <p onClick={handleLogout} className='cursor-pointer hover:text-black'>
-                  Logout
-                </p>
+                <p onClick={handleLogout} className='cursor-pointer hover:text-black'>Logout</p>
               </div>
             </div>
           )}
         </div>
 
         <Link to='/cart' className='relative'>
-          <img src={assets.cart_icon} alt="cart" className='w-5 min-w-5' />
-          <p className='absolute right-[-5px] w-4 text-center leading-4 bg-black text-white aspect-square rounded-full text-[8px]'>
+          <img src={assets.cart_icon} className='w-5 min-w-5' alt="" />
+          <p className='absolute right-[-5px] bottom-[-5px] w-4 text-center leading-4 bg-black text-white aspect-square rounded-full text-[8px]'>
             {getCartCount()}
           </p>
         </Link>
 
-        <img 
-          onClick={() => setVisible(true)} 
-          src={assets.menu_icon} 
-          alt="menu" 
-          className='w-5 cursor-pointer sm:hidden' 
-        />
+        <img onClick={() => setVisible(true)} src={assets.menu_icon} className='w-5 cursor-pointer sm:hidden' alt="" />
       </div>
 
-      {/* Sidebar Menu for small screens */}
+      {/* Sidebar menu for small screens */}
       <div className={`absolute top-0 right-0 bottom-0 overflow-hidden bg-white transition-all ${visible ? 'w-full' : 'w-0'}`}>
         <div className='flex flex-col text-gray-600'>
           <div onClick={() => setVisible(false)} className='flex items-center gap-4 p-3 cursor-pointer'>
@@ -131,13 +123,10 @@ const NavBar = () => {
           {token ? (
             <>
               <NavLink onClick={() => setVisible(false)} className='py-2 pl-6 border' to='/orders'>ORDERS</NavLink>
-              {/* ADMIN ACCESS in mobile menu */}
               {user && user.role === 'admin' && (
-                <NavLink onClick={() => setVisible(false)} className='py-2 pl-6 border bg-blue-50 text-blue-600 font-semibold' to='/admin'>
-                  🔧 ADMIN PANEL
-                </NavLink>
+                <NavLink onClick={() => setVisible(false)} className='py-2 pl-6 border' to='/admin'>ADMIN</NavLink>
               )}
-              <div onClick={() => { setVisible(false); handleLogout(); }} className='py-2 pl-6 border cursor-pointer'>LOGOUT</div>
+              <p onClick={() => { handleLogout(); setVisible(false); }} className='py-2 pl-6 border cursor-pointer'>LOGOUT</p>
             </>
           ) : (
             <NavLink onClick={() => setVisible(false)} className='py-2 pl-6 border' to='/login'>LOGIN</NavLink>
@@ -145,7 +134,7 @@ const NavBar = () => {
         </div>
       </div>
     </div>
-  );
-};
+  )
+}
 
 export default NavBar;

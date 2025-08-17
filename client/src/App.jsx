@@ -1,5 +1,6 @@
 import React from "react";
 import { Routes, Route } from "react-router-dom";
+import ReduxBridge from "./context/ReduxBridge";
 import Home from "./pages/Home";
 import Collection from "./pages/Collection";
 import About from "./pages/About";
@@ -29,46 +30,48 @@ import AdminLayout from "./pages/admin/AdminLayout";
 
 const App = () => {
   return (
-    <div className="px-4 sm:px-[5vw] md:px-[7vw] lg:px-[9vw]">
-      <ServerStatus />
-      <ToastContainer />
-      <AdminFloatingButton />
-      <Routes>
-        {/* Public Routes */}
-        <Route
-          path="/*"
-          element={
-            <>
-              <NavBar />
-              <SearchBar />
-              <Routes>
-                <Route path="/" element={<Home />} />
-                <Route path="/collection" element={<Collection />} />
-                <Route path="/about" element={<About />} />
-                <Route path="/contact" element={<Contact />} />
-                <Route path="/product/:productID" element={<Product />} />
-                <Route path="/cart" element={<Cart />} />
-                <Route path="/login" element={<Login />} />
-                <Route path="/place-order" element={<PlaceOrder />} />
-                <Route path="/orders" element={<Orders />} />
-                <Route path="/payment/success" element={<PaymentSuccess />} />
-                <Route path="/payment/cancel" element={<PaymentCancel />} />
-              </Routes>
-              <Footer />
-            </>
-          }
-        />
+    <ReduxBridge>
+      <div className="px-4 sm:px-[5vw] md:px-[7vw] lg:px-[9vw]">
+        <ServerStatus />
+        <ToastContainer />
+        <AdminFloatingButton />
+        <Routes>
+          {/* Public Routes */}
+          <Route
+            path="/*"
+            element={
+              <>
+                <NavBar />
+                <SearchBar />
+                <Routes>
+                  <Route path="/" element={<Home />} />
+                  <Route path="/collection" element={<Collection />} />
+                  <Route path="/about" element={<About />} />
+                  <Route path="/contact" element={<Contact />} />
+                  <Route path="/product/:productID" element={<Product />} />
+                  <Route path="/cart" element={<Cart />} />
+                  <Route path="/login" element={<Login />} />
+                  <Route path="/place-order" element={<PlaceOrder />} />
+                  <Route path="/orders" element={<Orders />} />
+                  <Route path="/payment/success" element={<PaymentSuccess />} />
+                  <Route path="/payment/cancel" element={<PaymentCancel />} />
+                </Routes>
+                <Footer />
+              </>
+            }
+          />
 
-        {/* Admin Routes - FIXED */}
-        <Route path="/admin" element={<AdminLayout />}>
-          <Route index element={<Dashboard />} />
-          <Route path="products" element={<ProductManagement />} />
-          <Route path="orders" element={<OrderManagement />} />
-          <Route path="users" element={<UserManagement />} />
-          <Route path="analytics" element={<Analytics />} />
-        </Route>
-      </Routes>
-    </div>
+          {/* Admin Routes - FIXED */}
+          <Route path="/admin" element={<AdminLayout />}>
+            <Route index element={<Dashboard />} />
+            <Route path="products" element={<ProductManagement />} />
+            <Route path="orders" element={<OrderManagement />} />
+            <Route path="users" element={<UserManagement />} />
+            <Route path="analytics" element={<Analytics />} />
+          </Route>
+        </Routes>
+      </div>
+    </ReduxBridge>
   );
 };
 

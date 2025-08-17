@@ -1,6 +1,9 @@
-import React, { useState, useContext } from 'react';
+import React, { useState } from 'react';
+import { useDispatch } from 'react-redux';
+import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
-import { ShopContext } from '../context/ShopContext';
+import { loginUser, registerUser } from '../store/slices/authSlice';
+import { useAuth } from '../hooks/useReduxSelectors';
 
 const Login = () => {
   const [currentState, setCurrentState] = useState('Login');
@@ -9,7 +12,10 @@ const Login = () => {
     email: '',
     password: ''
   });
-  const { login, register, loading } = useContext(ShopContext);
+  
+  const dispatch = useDispatch();
+  const navigate = useNavigate();
+  const { loading } = useAuth();
 
   const onChangeHandler = (event) => {
     const name = event.target.name;
@@ -22,17 +28,29 @@ const Login = () => {
     
     try {
       if (currentState === 'Login') {
-        await login(formData.email, formData.password);
+        const result = await dispatch(loginUser({
+          email: formData.email,
+          password: formData.password
+        })).unwrap();
+        
+        // Navigate based on user role
+        if (result.user.role === 'admin') {
+          navigate('/admin');
+        } else {
+          navigate('/');
+        }
       } else {
         if (!formData.name) {
           toast.error('Name is required');
           return;
         }
-        await register({
+        await dispatch(registerUser({
           name: formData.name,
           email: formData.email,
           password: formData.password
-        });
+        })).unwrap();
+        
+        navigate('/');
       }
     } catch (error) {
       console.error('Auth error:', error);
