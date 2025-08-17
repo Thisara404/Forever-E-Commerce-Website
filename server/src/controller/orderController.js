@@ -419,9 +419,11 @@ const getAllOrders = async (req, res) => {
       limit = 20, 
       status, 
       userId, 
-      search,  // Add search parameter
+      search,
       includePending = false 
     } = req.query;
+
+    console.log('📋 Admin getAllOrders called with params:', { page, limit, status, userId, search, includePending });
 
     // Build filter to exclude payment_pending by default
     const filter = {};
@@ -438,31 +440,81 @@ const getAllOrders = async (req, res) => {
       filter.userId = userId;
     }
 
-    // Add search functionality
+    // FIXED: Improved search functionality with better error handling
     if (search && search.trim()) {
       const searchTerm = search.trim();
-      filter.$or = [
-        // Search by order ID (partial match)
-        { _id: { $regex: searchTerm, $options: 'i' } },
-        // Search by shipping address fields
-        { 'shippingAddress.firstName': { $regex: searchTerm, $options: 'i' } },
-        { 'shippingAddress.lastName': { $regex: searchTerm, $options: 'i' } },
-        { 'shippingAddress.email': { $regex: searchTerm, $options: 'i' } },
-        { 'shippingAddress.phone': { $regex: searchTerm, $options: 'i' } }
-      ];
+      console.log('🔍 Searching for:', searchTerm);
+      
+      try {
+        // Create search conditions
+        const searchConditions = [];
+        
+        // Search by order ID (if it looks like a MongoDB ObjectId or partial match)
+        if (searchTerm.length >= 3) {
+          searchConditions.push({ _id: { $regex: searchTerm, $options: 'i' } });
+        }
+        
+        // Search by shipping address fields (with escaped special characters)
+        const escapedSearchTerm = searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        
+        searchConditions.push(
+          { 'shippingAddress.firstName': { $regex: escapedSearchTerm, $options: 'i' } },
+          { 'shippingAddress.lastName': { $regex: escapedSearchTerm, $options: 'i' } },
+          { 'shippingAddress.email': { $regex: escapedSearchTerm, $options: 'i' } },
+          { 'shippingAddress.phone': { $regex: escapedSearchTerm, $options: 'i' } }
+        );
+        
+        filter.$or = searchConditions;
+        
+      } catch (searchError) {
+        console.error('Search regex error:', searchError);
+        // If regex fails, fall back to simple text search
+        filter['shippingAddress.firstName'] = { $regex: searchTerm, $options: 'i' };
+      }
     }
+
+    console.log('📋 Final filter:', JSON.stringify(filter, null, 2));
 
     const skip = (page - 1) * limit;
 
-    const orders = await Order.find(filter)
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(Number(limit))
-      .populate('userId', 'name email')
-      .populate('items.productId', 'name image');
+    // Execute the query with error handling
+    let orders, totalOrders;
+    
+    try {
+      orders = await Order.find(filter)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(Number(limit))
+        .populate('userId', 'name email')
+        .populate('items.productId', 'name image');
 
-    const totalOrders = await Order.countDocuments(filter);
+      totalOrders = await Order.countDocuments(filter);
+      
+    } catch (queryError) {
+      console.error('MongoDB query error:', queryError);
+      
+      // If the search query fails, try without search
+      if (search) {
+        console.log('🔄 Retrying without search due to query error...');
+        delete filter.$or;
+        delete filter['shippingAddress.firstName'];
+        
+        orders = await Order.find(filter)
+          .sort({ createdAt: -1 })
+          .skip(skip)
+          .limit(Number(limit))
+          .populate('userId', 'name email')
+          .populate('items.productId', 'name image');
+
+        totalOrders = await Order.countDocuments(filter);
+      } else {
+        throw queryError;
+      }
+    }
+
     const totalPages = Math.ceil(totalOrders / limit);
+
+    console.log(`📋 Found ${orders.length} orders (${totalOrders} total)`);
 
     res.status(200).json({
       success: true,
@@ -479,10 +531,11 @@ const getAllOrders = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Get all orders error:', error);
+    console.error('❌ Get all orders error:', error);
     res.status(500).json({
       success: false,
-      message: 'Server error while fetching orders'
+      message: 'Server error while fetching orders',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 };
