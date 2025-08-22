@@ -6,6 +6,10 @@ import { useProducts, useAuth } from '../hooks/useReduxSelectors';
 import { assets } from '../assets/assets';
 import RelatedProduts from '../components/RelatedProduts';
 import { toast } from 'react-toastify';
+import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
+import { Button } from '../components/ui/button';
+import { Badge } from '../components/ui/badge';
+import { Separator } from '../components/ui/separator';
 
 const Product = () => {
   const { productID } = useParams();
@@ -30,7 +34,7 @@ const Product = () => {
 
   const handleAddToCart = async () => {
     if (!size) {
-      toast.error('Select Product Size');
+      toast.error('Please select a size');
       return;
     }
 
@@ -45,6 +49,7 @@ const Product = () => {
         size, 
         quantity: 1 
       })).unwrap();
+      toast.success('Added to cart successfully!');
     } catch (error) {
       console.error('Failed to add to cart:', error);
     }
@@ -55,70 +60,148 @@ const Product = () => {
   }, [productID, products]);
 
   return productData ? (
-    <div className='border-t-2 pt-10 transition-opacity ease-in duration-500 opacity-100'>
-      {/* Product Data */}
-      <div className='flex gap-12 sm:gap-12 flex-col sm:flex-row'>
+    <div className='border-t pt-10 space-y-12'>
+      {/* Product Section */}
+      <div className='grid lg:grid-cols-2 gap-12'>
         {/* Product Images */}
-        <div className='flex-1 flex flex-col-reverse gap-3 sm:flex-row'>
-          <div className='flex sm:flex-col overflow-x-auto sm:overflow-y-scroll justify-between sm:justify-normal sm:w-[18.7%] w-full'>
-            {
-              productData.image.map((item, index) => (
-                <img onClick={() => setImage(item)} src={item} key={index} className='w-[24%] sm:w-full sm:mb-3 flex-shrink-0 cursor-pointer' alt="" />
-              ))
-            }
+        <div className='space-y-4'>
+          {/* Main Image */}
+          <div className='aspect-square overflow-hidden rounded-lg border'>
+            <img 
+              className='w-full h-full object-cover' 
+              src={image} 
+              alt={productData.name} 
+            />
           </div>
-          <div className='w-full sm:w-[80%]'>
-            <img className='w-full h-auto' src={image} alt="" />
+          
+          {/* Thumbnail Images */}
+          <div className='grid grid-cols-4 gap-3'>
+            {productData.image.map((item, index) => (
+              <button
+                key={index}
+                onClick={() => setImage(item)}
+                className={`aspect-square overflow-hidden rounded-md border-2 transition-colors ${
+                  image === item ? 'border-primary' : 'border-muted hover:border-muted-foreground'
+                }`}
+              >
+                <img 
+                  src={item} 
+                  alt={`${productData.name} ${index + 1}`}
+                  className='w-full h-full object-cover'
+                />
+              </button>
+            ))}
           </div>
         </div>
 
-        {/* Product info */}
-        <div className='flex-1'>
-          <h1 className='font-medium text-2xl mt-2'>{productData.name}</h1>
-          <div className='flex items-center gap-1 mt-2'>
-            <img src={assets.star_icon} alt="" className="w-3 5" />
-            <img src={assets.star_icon} alt="" className="w-3 5" />
-            <img src={assets.star_icon} alt="" className="w-3 5" />
-            <img src={assets.star_icon} alt="" className="w-3 5" />
-            <img src={assets.star_dull_icon} alt="" className="w-3 5" />
-            <p className='pl-2'>(122)</p>
+        {/* Product Info */}
+        <div className='space-y-6'>
+          <div>
+            <h1 className='text-3xl font-bold mb-3'>{productData.name}</h1>
+            
+            {/* Rating */}
+            <div className='flex items-center gap-2 mb-4'>
+              <div className="flex items-center">
+                {[...Array(4)].map((_, i) => (
+                  <img key={i} src={assets.star_icon} alt="star" className="w-4 h-4" />
+                ))}
+                <img src={assets.star_dull_icon} alt="star" className="w-4 h-4" />
+              </div>
+              <span className='text-sm text-muted-foreground'>(122 reviews)</span>
+            </div>
+
+            <p className='text-3xl font-bold text-primary mb-4'>
+              {currency} {productData.price}
+            </p>
           </div>
-          <p className='mt-5 text-3xl font-medium'>{currency}{productData.price}</p>
-          <p className='mt-5 text-gray-500 md:w-4/5'>{productData.description}</p>
-          <div className='flex flex-col gap-4 my-8'>
-            <p>Select Size</p>
-            <div className='flex gap-2'>
+
+          <Separator />
+
+          {/* Description */}
+          <div>
+            <h3 className="font-semibold mb-2">Description</h3>
+            <p className='text-muted-foreground leading-relaxed'>
+              {productData.description}
+            </p>
+          </div>
+
+          {/* Size Selection */}
+          <div className='space-y-3'>
+            <h3 className="font-semibold">Select Size</h3>
+            <div className='flex flex-wrap gap-2'>
               {productData.sizes.map((item, index) => (
-                <button onClick={() => setSize(item)} className={`border py-2 px-4 bg-gray-100 ${item === size ? 'border-orange-500' : ''}`} key={index}>{item}</button>
+                <Button
+                  key={index}
+                  variant={item === size ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setSize(item)}
+                  className="min-w-12"
+                >
+                  {item}
+                </Button>
               ))}
             </div>
           </div>
-          <button onClick={handleAddToCart} className='bg-black text-white px-8 py-3 text-sm active:bg-gray-700'>ADD TO CART</button>
-          <hr className='mt-8 sm:w-4/5'/>
-          <div className='text-sm text-gray-500 mt-5 flex flex-col gap-1'>
-            <p>100% Original product.</p>
-            <p>Cash on delivery is available on this product.</p>
-            <p>Easy return and exchange policy within 7 days.</p>
+
+          {/* Add to Cart */}
+          <Button 
+            onClick={handleAddToCart} 
+            size="lg"
+            className='w-full sm:w-auto'
+          >
+            Add to Cart
+          </Button>
+
+          <Separator />
+
+          {/* Product Features */}
+          <div className="space-y-3">
+            <h3 className="font-semibold">Product Features</h3>
+            <div className='space-y-2 text-sm text-muted-foreground'>
+              <div className="flex items-center gap-2">
+                <Badge variant="outline" className="text-xs">✓</Badge>
+                <span>100% Original product</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Badge variant="outline" className="text-xs">🚚</Badge>
+                <span>Cash on delivery available</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Badge variant="outline" className="text-xs">↩️</Badge>
+                <span>Easy return and exchange policy within 7 days</span>
+              </div>
+            </div>
           </div>
         </div>
       </div>
       
-      {/* Review section*/}
-      <div className='mt-20'>
-        <div className='flex'>
-          <b className='border px-5 py-3 text-sm'>Description</b>
-          <p className='border px-5 py-3 text-sm'>Reviews (122)</p>
-        </div>
-        <div className='flex flex-col gap-4 border px-6 py-6 text-sm text-gray-500'>
-          <p>Elevate your everyday style with our Classic Cotton Crewneck T-Shirt — a wardrobe essential designed for comfort and versatility. Crafted from soft, breathable 100% cotton, this tee features a relaxed fit, reinforced stitching, and a timeless crew neckline. Whether you're layering it up or wearing it solo, it's perfect for any casual look.</p>
-          <p>Stay cozy without compromising on style. Our Essential Fleece Pullover Hoodie is made with a soft cotton-blend fleece that keeps you warm and comfortable all day. Designed with a relaxed fit, spacious front pocket, and adjustable drawstring hood — it's your go-to layer for chilly days, casual outings, or lounging at home.</p>
-        </div>
-      </div>
+      {/* Product Details Section */}
+      <Card>
+        <CardHeader>
+          <div className="flex gap-4">
+            <Button variant="default" size="sm">Description</Button>
+            <Button variant="ghost" size="sm">Reviews (122)</Button>
+          </div>
+        </CardHeader>
+        <CardContent className='space-y-4 text-muted-foreground'>
+          <p>
+            Elevate your everyday style with our Classic Cotton Crewneck T-Shirt — a wardrobe essential designed for comfort and versatility. Crafted from soft, breathable 100% cotton, this tee features a relaxed fit, reinforced stitching, and a timeless crew neckline.
+          </p>
+          <p>
+            Stay cozy without compromising on style. Our Essential Fleece Pullover Hoodie is made with a soft cotton-blend fleece that keeps you warm and comfortable all day. Designed with a relaxed fit, spacious front pocket, and adjustable drawstring hood — it's your go-to layer for chilly days, casual outings, or lounging at home.
+          </p>
+        </CardContent>
+      </Card>
 
-      {/* display related products */}
+      {/* Related Products */}
       <RelatedProduts category={productData.category} subCategory={productData.subCategory}/>
     </div>
-  ) : <div className='opacity-0'></div>
+  ) : (
+    <div className="flex justify-center items-center h-64">
+      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900"></div>
+      <span className="ml-3 text-muted-foreground">Loading product...</span>
+    </div>
+  )
 }
 
 export default Product;

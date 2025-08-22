@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useProducts } from '../hooks/useReduxSelectors';
 import Title from './Title';
 import ProductItem from './ProductItem';
+import { Card, CardContent } from './ui/card';
 
 const BestSeller = () => {
   const { products, loading } = useProducts();
@@ -21,18 +22,21 @@ const BestSeller = () => {
           <Title text1={'BEST'} text2={'SELLERS'}/>
         </div>
         <div className='flex justify-center items-center h-40'>
-          <div className='text-gray-500'>Loading bestsellers...</div>
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+          <span className="ml-3 text-muted-foreground">Loading bestsellers...</span>
         </div>
       </div>
     );
   }
 
   return (
-    <div className='my-10'>
-      <div className='text-center text-3xl py-8'>
-        <Title text1={'BEST'} text2={'SELLERS'}/>
-        <p className='w-3/4 m-auto text-xs sm:text-sm md:text-base text-gray-600'>
-          Our Best Sellers are loved for a reason. These top-rated gadgets are flying off the shelves and making waves with real users. Tried, tested, and trusted — shop the gear everyone's talking about.
+    <div className='my-10 space-y-8'>
+      <div className='text-center space-y-4'>
+        <div className='text-3xl py-4'>
+          <Title text1={'BEST'} text2={'SELLERS'}/>
+        </div>
+        <p className='w-3/4 m-auto text-xs sm:text-sm md:text-base text-muted-foreground max-w-2xl'>
+          Our Best Sellers are loved for a reason. These top-rated products are flying off the shelves and making waves with real users. Tried, tested, and trusted — shop the gear everyone's talking about.
         </p>
       </div>
 
@@ -48,13 +52,19 @@ const BestSeller = () => {
             />
           ))
         ) : (
-          <div className='col-span-full text-center text-gray-500 py-8'>
-            No bestsellers available
-          </div>
+          <Card className='col-span-full'>
+            <CardContent className='text-center py-16'>
+              <div className="text-6xl mb-4">🌟</div>
+              <h3 className="text-xl font-semibold mb-2">No Bestsellers Yet</h3>
+              <p className="text-muted-foreground">
+                Check back soon for our most popular products!
+              </p>
+            </CardContent>
+          </Card>
         )}
       </div>
     </div>
   )
 }
 
-export default BestSeller
+export default BestSeller;

@@ -1,36 +1,40 @@
 // client/src/components/ServerStatus.jsx
-import React, { useState, useEffect } from 'react';
+import React from 'react';
+import { useServerHealth } from '../hooks/useServerHealth';
+import { Alert, AlertDescription } from './ui/alert';
+import { Badge } from './ui/badge';
 
 const ServerStatus = () => {
-  const [serverStatus, setServerStatus] = useState('checking');
+  const { isHealthy, isLoading, lastChecked } = useServerHealth();
 
-  useEffect(() => {
-    const checkServer = async () => {
-      try {
-        const response = await fetch('http://localhost:5000/api/health');
-        if (response.ok) {
-          setServerStatus('online');
-        } else {
-          setServerStatus('offline');
-        }
-      } catch (error) {
-        setServerStatus('offline');
-      }
-    };
+  // Don't show anything during initial load
+  if (isLoading) {
+    return null;
+  }
 
-    checkServer();
-    const interval = setInterval(checkServer, 30000); // Check every 30 seconds
+  // Only show status if there's an issue
+  if (!isHealthy) {
+    return (
+      <Alert variant="destructive" className="mb-4">
+        <AlertDescription className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Badge variant="destructive" className="animate-pulse">
+              Connection Issue
+            </Badge>
+            <span className="text-sm">Having trouble connecting to server. Some features may be limited.</span>
+          </div>
+          {lastChecked && (
+            <span className="text-xs opacity-75">
+              {new Date(lastChecked).toLocaleTimeString()}
+            </span>
+          )}
+        </AlertDescription>
+      </Alert>
+    );
+  }
 
-    return () => clearInterval(interval);
-  }, []);
-
-  if (serverStatus === 'online') return null;
-
-  return (
-    <div className="fixed top-0 left-0 right-0 bg-red-600 text-white text-center py-2 z-50">
-      {serverStatus === 'checking' ? 'Checking server...' : 'Server is offline. Please start the backend server.'}
-    </div>
-  );
+  // Don't show anything if healthy (clean UI)
+  return null;
 };
 
 export default ServerStatus;

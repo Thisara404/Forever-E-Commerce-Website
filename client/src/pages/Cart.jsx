@@ -6,6 +6,10 @@ import { useCart, useProducts } from '../hooks/useReduxSelectors';
 import Title from '../components/Title';
 import { assets } from '../assets/assets';
 import CartTotal from '../components/CartTotal';
+import { Card, CardContent } from '../components/ui/card';
+import { Button } from '../components/ui/button';
+import { Input } from '../components/ui/input';
+import { Separator } from '../components/ui/separator';
 
 const Cart = () => {
   const dispatch = useDispatch();
@@ -14,7 +18,6 @@ const Cart = () => {
   const { products } = useProducts();
   const [cartData, setCartData] = useState([]);
   
-  // Add currency constant
   const currency = 'LKR';
 
   const updateQuantity = async (itemId, size, quantity) => {
@@ -42,83 +45,118 @@ const Cart = () => {
   }, [cartItems]);
 
   return (
-    <div className='border-t pt-14'>
-      <div className='text-2xl mb-3'>
-        <Title text1={'YOUR'} text2={'CART'}/>
+    <div className='border-t pt-14 space-y-8'>
+      <div className='text-center'>
+        <div className='text-3xl font-bold tracking-tight mb-2'>
+          <Title text1={'YOUR'} text2={'CART'}/>
+        </div>
+        <p className="text-muted-foreground">
+          Review your items and proceed to checkout
+        </p>
       </div>
 
       <div>
         {cartData.length === 0 ? (
-          <div className='text-center py-16'>
-            <p className='text-gray-500 text-lg mb-4'>Your cart is empty</p>
-            <button 
-              onClick={() => navigate('/collection')}
-              className='bg-black text-white px-6 py-3 text-sm'
-            >
-              START SHOPPING
-            </button>
-          </div>
-        ) : (
-          cartData.map((item, index) => {
-            const productData = products.find((product) => product._id === item._id);
-            
-            if (!productData) {
-              return null; // Skip if product not found
-            }
-
-            return (
-              <div key={index} className='py-4 border-t border-b text-gray-700 grid grid-cols-[4fr_0.5fr_0.5fr] sm:grid-cols-[4fr_2fr_0.5fr] items-center gap-4'>
-                <div className='flex item-start gap-6'>
-                  <img className='w-16 sm:w-20' src={productData.image[0]} alt="" />
-                  <div>
-                    <p className='text-xs sm:text-lg font-medium'>{productData.name}</p>
-                    <div className='flex items-center gap-5 mt-2'>
-                      <p>{currency} {productData.price}</p>
-                      <p className='px-2 sm:px-3 sm:py-1 border bg-slate-50'>{item.size}</p>
-                    </div>
-                  </div>
-                </div> 
-                <input 
-                  onChange={(e) => {
-                    const value = e.target.value;
-                    if (value === '' || value === '0') {
-                      updateQuantity(item._id, item.size, 0);
-                    } else {
-                      updateQuantity(item._id, item.size, Number(value));
-                    }
-                  }} 
-                  className='border max-w-10 sm:max-w-20 px-1 sm:px-2 py-1' 
-                  type="number" 
-                  min={1} 
-                  defaultValue={item.quantity}
-                />
-                <img 
-                  onClick={() => updateQuantity(item._id, item.size, 0)} 
-                  className='w-4 mr-4 sm:w-5 cursor-pointer' 
-                  src={assets.bin_icon} 
-                  alt="" 
-                />
-              </div>
-            );
-          })
-        )}
-      </div>
-
-      {cartData.length > 0 && (
-        <div className='flex justify-end my-20'>
-          <div className='w-full sm:w-[450px]'>
-            <CartTotal />
-            <div className='w-full text-end'>
-              <button 
-                onClick={() => navigate('/place-order')} 
-                className='bg-black text-white text-sm my-8 px-8 py-3'
+          <Card>
+            <CardContent className='text-center py-16'>
+              <div className="text-6xl mb-4">🛒</div>
+              <h3 className='text-xl font-semibold mb-2'>Your cart is empty</h3>
+              <p className='text-muted-foreground mb-6'>
+                Looks like you haven't added any items to your cart yet
+              </p>
+              <Button 
+                onClick={() => navigate('/collection')}
+                size="lg"
               >
-                PROCEED TO CHECKOUT
-              </button>
+                Start Shopping
+              </Button>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="space-y-4">
+            {cartData.map((item, index) => {
+              const productData = products.find((product) => product._id === item._id);
+              
+              if (!productData) {
+                return null;
+              }
+
+              return (
+                <Card key={index}>
+                  <CardContent className="p-6">
+                    <div className='grid grid-cols-[auto_1fr_auto_auto] gap-6 items-center'>
+                      {/* Product Image and Info */}
+                      <div className='flex items-start gap-4'>
+                        <img 
+                          className='w-20 h-20 object-cover rounded-md' 
+                          src={productData.image[0]} 
+                          alt={productData.name}
+                        />
+                        <div className="space-y-1">
+                          <h4 className='font-medium text-sm sm:text-base line-clamp-2'>
+                            {productData.name}
+                          </h4>
+                          <div className='flex items-center gap-3 text-sm'>
+                            <span className="font-medium">{currency} {productData.price}</span>
+                            <span className='px-2 py-1 bg-muted rounded text-xs'>
+                              Size: {item.size}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Quantity Input */}
+                      <div className="flex items-center gap-2">
+                        <label className="text-sm font-medium">Qty:</label>
+                        <Input
+                          type="number"
+                          min={1}
+                          value={item.quantity}
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            if (value === '' || value === '0') {
+                              updateQuantity(item._id, item.size, 0);
+                            } else {
+                              updateQuantity(item._id, item.size, Number(value));
+                            }
+                          }}
+                          className="w-20 h-9"
+                        />
+                      </div>
+
+                      {/* Remove Button */}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => updateQuantity(item._id, item.size, 0)}
+                        className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                      >
+                        Remove
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
+
+            <Separator className="my-8" />
+
+            {/* Cart Total and Checkout */}
+            <div className='flex justify-end'>
+              <div className='w-full sm:w-[450px] space-y-6'>
+                <CartTotal />
+                <Button 
+                  onClick={() => navigate('/place-order')} 
+                  size="lg"
+                  className='w-full'
+                >
+                  Proceed to Checkout
+                </Button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   )
 }

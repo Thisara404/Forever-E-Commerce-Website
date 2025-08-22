@@ -1,23 +1,36 @@
 import React, { useState, useEffect } from 'react';
+import { toast } from 'react-toastify';
+import ApiService from '../services/api';
+import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
+import { Input } from './ui/input';
+import { Button } from './ui/button';
+import { Label } from './ui/label';
+import { Badge } from './ui/badge';
+import { Alert, AlertDescription } from './ui/alert';
 
 const StripePayment = ({ orderId, amount, onSuccess, onCancel }) => {
-  const [processing, setProcessing] = useState(false);
-  const [error, setError] = useState(null);
-  const [paymentReady, setPaymentReady] = useState(false);
   const [cardNumber, setCardNumber] = useState('');
   const [expiryDate, setExpiryDate] = useState('');
   const [cvc, setCvc] = useState('');
   const [zip, setZip] = useState('');
+  const [processing, setProcessing] = useState(false);
+  const [paymentReady, setPaymentReady] = useState(false);
 
-  // Simulate Stripe initialization
+  const testCards = [
+    { number: '4242424242424242', type: 'Visa - Success' },
+    { number: '4000000000000002', type: 'Visa - Declined' },
+    { number: '5555555555554444', type: 'Mastercard - Success' },
+    { number: '4000000000009995', type: 'Visa - Insufficient Funds' },
+  ];
+
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setPaymentReady(true);
-    }, 1000);
-    return () => clearTimeout(timer);
+    setPaymentReady(true);
   }, []);
 
-  // Format card number with spaces
+  const validateCardNumber = (number) => {
+    return /^\d{16}$/.test(number.replace(/\s/g, ''));
+  };
+
   const formatCardNumber = (value) => {
     const v = value.replace(/\s+/g, '').replace(/[^0-9]/gi, '');
     const matches = v.match(/\d{4,16}/g);
@@ -33,59 +46,19 @@ const StripePayment = ({ orderId, amount, onSuccess, onCancel }) => {
     }
   };
 
-  // Format expiry date
-  const formatExpiryDate = (value) => {
-    const v = value.replace(/\D/g, '');
-    if (v.length >= 2) {
-      return v.substring(0, 2) + '/' + v.substring(2, 4);
-    }
-    return v;
-  };
-
-  // Validate card number (simple Luhn algorithm check)
-  const validateCardNumber = (number) => {
-    const cleanNumber = number.replace(/\s/g, '');
-    if (cleanNumber.length < 13 || cleanNumber.length > 19) return false;
-    
-    let sum = 0;
-    let shouldDouble = false;
-    
-    for (let i = cleanNumber.length - 1; i >= 0; i--) {
-      let digit = parseInt(cleanNumber.charAt(i), 10);
-      
-      if (shouldDouble) {
-        digit *= 2;
-        if (digit > 9) digit -= 9;
-      }
-      
-      sum += digit;
-      shouldDouble = !shouldDouble;
-    }
-    
-    return sum % 10 === 0;
-  };
-
-  // Test card patterns
-  const testCards = [
-    { number: '4242 4242 4242 4242', type: 'Visa - Success' },
-    { number: '4000 0000 0000 0002', type: 'Visa - Declined' },
-    { number: '4000 0000 0000 9995', type: 'Visa - Insufficient Funds' },
-    { number: '5555 5555 5555 4444', type: 'Mastercard - Success' }
-  ];
-
   const handleCardNumberChange = (e) => {
     const formatted = formatCardNumber(e.target.value);
     if (formatted.length <= 19) {
       setCardNumber(formatted);
-      setError(null);
     }
   };
 
   const handleExpiryChange = (e) => {
-    const formatted = formatExpiryDate(e.target.value);
-    if (formatted.length <= 5) {
-      setExpiryDate(formatted);
+    let value = e.target.value.replace(/\D/g, '');
+    if (value.length >= 2) {
+      value = value.substring(0, 2) + '/' + value.substring(2, 4);
     }
+    setExpiryDate(value);
   };
 
   const handleCvcChange = (e) => {
@@ -97,197 +70,165 @@ const StripePayment = ({ orderId, amount, onSuccess, onCancel }) => {
 
   const handleZipChange = (e) => {
     const value = e.target.value.replace(/\D/g, '');
-    if (value.length <= 10) {
+    if (value.length <= 5) {
       setZip(value);
     }
   };
 
+  const fillTestCard = (testCard) => {
+    setCardNumber(formatCardNumber(testCard.number));
+    setExpiryDate('12/25');
+    setCvc('123');
+    setZip('12345');
+  };
+
   const handleSubmit = async () => {
-    if (processing) return;
-
-    // Validation
-    if (!cardNumber || !expiryDate || !cvc) {
-      setError('Please fill in all required fields');
-      return;
-    }
-
     if (!validateCardNumber(cardNumber)) {
-      setError('Please enter a valid card number');
+      toast.error('Please enter a valid 16-digit card number');
       return;
     }
 
-    if (expiryDate.length !== 5) {
-      setError('Please enter a valid expiry date (MM/YY)');
+    if (!expiryDate || expiryDate.length !== 5) {
+      toast.error('Please enter a valid expiry date (MM/YY)');
       return;
     }
 
-    if (cvc.length < 3) {
-      setError('Please enter a valid CVC');
+    if (!cvc || cvc.length < 3) {
+      toast.error('Please enter a valid CVC');
       return;
     }
 
     setProcessing(true);
-    setError(null);
 
-    // Simulate payment processing
     try {
-      await new Promise(resolve => setTimeout(resolve, 2000));
-
-      // Check for test card scenarios
       const cleanCardNumber = cardNumber.replace(/\s/g, '');
       
-      if (cleanCardNumber === '4000000000000002') {
-        throw new Error('Your card was declined');
-      } else if (cleanCardNumber === '4000000000009995') {
-        throw new Error('Your card has insufficient funds');
-      } else if (cleanCardNumber === '4000000000000069') {
-        throw new Error('Your card has expired');
-      }
-
-      // Simulate successful payment
-      console.log('Payment successful!', {
+      const paymentData = {
         orderId,
-        amount,
-        cardLast4: cleanCardNumber.slice(-4)
-      });
+        amount: Math.round(amount * 100),
+        cardNumber: cleanCardNumber,
+        expiryMonth: expiryDate.split('/')[0],
+        expiryYear: '20' + expiryDate.split('/')[1],
+        cvc,
+        zip
+      };
 
-      onSuccess();
+      console.log('Processing payment with data:', paymentData);
+
+      const response = await ApiService.processStripePayment(paymentData);
+      
+      if (response.success) {
+        toast.success('Payment successful!');
+        onSuccess();
+      } else {
+        throw new Error(response.message || 'Payment failed');
+      }
     } catch (error) {
-      setError(error.message);
+      console.error('Payment error:', error);
+      toast.error(error.message || 'Payment failed. Please try again.');
     } finally {
       setProcessing(false);
     }
   };
 
-  const fillTestCard = (testCard) => {
-    setCardNumber(testCard.number);
-    setExpiryDate('12/34');
-    setCvc('123');
-    setZip('12345');
-  };
-
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white p-6 rounded-lg shadow-lg max-w-md mx-auto w-full max-h-screen overflow-y-auto">
-        <div className="flex justify-between items-center mb-6">
-          <h3 className="text-xl font-semibold text-gray-800">Secure Payment</h3>
-          <div className="flex items-center text-sm text-green-600">
-            <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
-              <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
-            </svg>
-            SSL Secured
-          </div>
-        </div>
-
-        <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded">
-          <div className="flex items-center">
-            <div className="text-yellow-600 mr-2">⚠️</div>
-            <div>
-              <p className="text-sm font-medium text-yellow-800">Test Mode</p>
-              <p className="text-xs text-yellow-600">No real money will be charged</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="mb-4">
-          <div className="flex justify-between text-lg font-semibold mb-2">
-            <span>Order Total</span>
-            <span>LKR {amount?.toLocaleString() || '0'}</span>
-          </div>
-        </div>
-
-        {error && (
-          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded">
-            <p className="text-red-800 text-sm">{error}</p>
-          </div>
-        )}
+    <Card className="w-full max-w-md mx-auto">
+      <CardHeader>
+        <CardTitle className="flex items-center justify-between">
+          <span>💳 Payment Details</span>
+          <Badge variant="outline">Test Mode</Badge>
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <Alert>
+          <AlertDescription>
+            <strong>Amount to pay: LKR {amount?.toLocaleString() || '0'}</strong>
+          </AlertDescription>
+        </Alert>
 
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Card Number *
-            </label>
-            <input
+            <Label htmlFor="cardNumber">Card Number *</Label>
+            <Input
+              id="cardNumber"
               type="text"
               value={cardNumber}
               onChange={handleCardNumberChange}
-              placeholder="1234 1234 1234 1234"
-              className="w-full p-3 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              placeholder="1234 5678 9012 3456"
               disabled={processing}
+              className="font-mono"
             />
           </div>
 
-          <div className="flex gap-3">
-            <div className="flex-1">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Expiry Date *
-              </label>
-              <input
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="expiry">Expiry Date *</Label>
+              <Input
+                id="expiry"
                 type="text"
                 value={expiryDate}
                 onChange={handleExpiryChange}
                 placeholder="MM/YY"
-                className="w-full p-3 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 disabled={processing}
+                className="font-mono"
               />
             </div>
-            <div className="flex-1">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                CVC *
-              </label>
-              <input
+            <div>
+              <Label htmlFor="cvc">CVC *</Label>
+              <Input
+                id="cvc"
                 type="text"
                 value={cvc}
                 onChange={handleCvcChange}
                 placeholder="123"
-                className="w-full p-3 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 disabled={processing}
+                className="font-mono"
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              ZIP Code
-            </label>
-            <input
+            <Label htmlFor="zip">ZIP Code</Label>
+            <Input
+              id="zip"
               type="text"
               value={zip}
               onChange={handleZipChange}
               placeholder="12345"
-              className="w-full p-3 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               disabled={processing}
             />
           </div>
         </div>
 
         {/* Test Card Information */}
-        <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded">
-          <p className="text-sm font-medium text-blue-800 mb-2">Test Cards (Click to fill):</p>
-          <div className="space-y-2">
-            {testCards.map((card, index) => (
-              <button
-                key={index}
-                onClick={() => fillTestCard(card)}
-                className="block w-full text-left p-2 text-xs bg-white rounded border hover:bg-blue-50 transition-colors"
-                disabled={processing}
-              >
-                <div className="font-mono">{card.number}</div>
-                <div className="text-blue-600">{card.type}</div>
-              </button>
-            ))}
-          </div>
-        </div>
+        <Alert className="bg-blue-50 border-blue-200">
+          <AlertDescription>
+            <p className="font-medium text-blue-800 mb-2">Test Cards (Click to fill):</p>
+            <div className="space-y-2">
+              {testCards.map((card, index) => (
+                <Button
+                  key={index}
+                  variant="outline"
+                  size="sm"
+                  onClick={() => fillTestCard(card)}
+                  className="w-full justify-start text-xs h-auto p-2"
+                  disabled={processing}
+                >
+                  <div className="text-left">
+                    <div className="font-mono">{card.number}</div>
+                    <div className="text-blue-600">{card.type}</div>
+                  </div>
+                </Button>
+              ))}
+            </div>
+          </AlertDescription>
+        </Alert>
 
-        <div className="flex gap-3 mt-6">
-          <button
+        <div className="flex gap-3 pt-4">
+          <Button
             onClick={handleSubmit}
             disabled={processing || !paymentReady}
-            className={`flex-1 py-3 px-4 rounded font-medium transition-colors ${
-              processing || !paymentReady
-                ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                : 'bg-blue-600 text-white hover:bg-blue-700'
-            }`}
+            className="flex-1"
           >
             {processing ? (
               <div className="flex items-center justify-center">
@@ -299,34 +240,32 @@ const StripePayment = ({ orderId, amount, onSuccess, onCancel }) => {
             ) : (
               `Pay LKR ${amount?.toLocaleString() || '0'}`
             )}
-          </button>
+          </Button>
           
-          <button
+          <Button
             onClick={onCancel}
             disabled={processing}
-            className="px-4 py-3 border border-gray-300 rounded text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50"
+            variant="outline"
           >
             Cancel
-          </button>
+          </Button>
         </div>
 
         {/* Debug Information */}
-        <div className="mt-4 p-3 bg-gray-50 rounded text-xs">
-          <p className="font-medium text-gray-700 mb-1">Debug Info:</p>
-          <div className="space-y-1 text-gray-600">
-            <p>Payment Ready: {paymentReady ? '✅' : '⏳'}</p>
-            <p>Card Valid: {cardNumber && validateCardNumber(cardNumber) ? '✅' : '❌'}</p>
-            <p>Form Complete: {cardNumber && expiryDate && cvc ? '✅' : '❌'}</p>
-            <p>Processing: {processing ? '⏳' : '✅'}</p>
-            <p>Order ID: {orderId || 'Not provided'}</p>
-          </div>
-        </div>
-
-        <div className="mt-2 p-2 bg-gray-50 rounded text-xs text-gray-600">
-          <p><strong>Note:</strong> This is a mock Stripe integration for testing. In production, replace this with actual Stripe Elements.</p>
-        </div>
-      </div>
-    </div>
+        <Alert className="bg-muted">
+          <AlertDescription>
+            <p className="font-medium mb-1">Debug Info:</p>
+            <div className="space-y-1 text-xs">
+              <p>Payment Ready: {paymentReady ? '✅' : '⏳'}</p>
+              <p>Card Valid: {cardNumber && validateCardNumber(cardNumber) ? '✅' : '❌'}</p>
+              <p>Form Complete: {cardNumber && expiryDate && cvc ? '✅' : '❌'}</p>
+              <p>Processing: {processing ? '⏳' : '✅'}</p>
+              <p>Order ID: {orderId || 'Not provided'}</p>
+            </div>
+          </AlertDescription>
+        </Alert>
+      </CardContent>
+    </Card>
   );
 };
 

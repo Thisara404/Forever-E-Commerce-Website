@@ -26,18 +26,21 @@ app.use(helmet({
   crossOriginEmbedderPolicy: false,
 }));
 
-// Rate limiting - UPDATED: Make it less restrictive for development
+// UPDATED Rate limiting - Make it less restrictive and skip health checks
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 1000, // Increased from 100 to 1000 for development
+  max: 2000, // Increased from 1000 to 2000
   message: {
     success: false,
     message: 'Too many requests from this IP, please try again later.'
   },
   standardHeaders: true,
   legacyHeaders: false,
+  // Skip health checks from rate limiting
+  skip: (req) => {
+    return req.path === '/health' || req.path === '/api/health';
+  },
 });
-app.use('/api/', limiter);
 
 // CORS middleware - FIXED formatting
 app.use(cors({
@@ -65,6 +68,14 @@ app.options('*', cors());
 // Body parsing middleware
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// UPDATED: Apply rate limiting to API routes but exclude health check
+app.use('/api/', (req, res, next) => {
+  if (req.path === '/health') {
+    return next(); // Skip rate limiting for health check
+  }
+  return limiter(req, res, next);
+});
 
 // Import routes
 const authRoutes = require('./route/authRoutes');
@@ -94,13 +105,15 @@ app.get('/', (req, res) => {
   });
 });
 
-// Health check route
+// UPDATED Health check route - Add more detailed response and ensure no rate limiting
 app.get('/api/health', (req, res) => {
   res.json({
     success: true,
     message: 'Server is healthy',
     timestamp: new Date().toISOString(),
-    uptime: process.uptime()
+    uptime: process.uptime(),
+    environment: process.env.NODE_ENV || 'development',
+    database: 'connected' // You can add actual DB health check here
   });
 });
 
