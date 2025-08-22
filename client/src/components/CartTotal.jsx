@@ -1,6 +1,8 @@
 import React from 'react';
 import { useCart } from '../hooks/useReduxSelectors';
 import Title from './Title';
+import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
+import { Separator } from './ui/separator';
 
 const CartTotal = () => {
   const { getCartAmount } = useCart();
@@ -8,28 +10,29 @@ const CartTotal = () => {
   const delivery_fee = 10;
 
   return (
-    <div className='w-full'>
-      <div className='text-2xl'>
-        <Title text1={'CART'} text2={'TOTALS'}/>
-      </div>
-
-      <div className='flex flex-col gap-2 mt-2 text-sm'>
-        <div className='flex justify-between'>
-            <p>Subtotal</p>
-            <p>{currency} {getCartAmount()}.00</p>
+    <Card className="w-full">
+      <CardHeader>
+        <CardTitle className="text-xl">
+          <Title text1={'CART'} text2={'TOTALS'}/>
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div className="flex justify-between text-sm">
+          <span>Subtotal</span>
+          <span>{currency} {getCartAmount()}.00</span>
         </div>
-        <hr />
-        <div className='flex justify-between'>
-            <p>Shipping Fee</p>
-            <p>{currency} {delivery_fee}.00</p>
+        <Separator />
+        <div className="flex justify-between text-sm">
+          <span>Shipping Fee</span>
+          <span>{currency} {delivery_fee}.00</span>
         </div>
-        <hr />
-        <div className='flex justify-between'>
-            <b>Total</b>
-            <b>{currency} {getCartAmount() === 0 ? 0 : getCartAmount() + delivery_fee}.00</b>
+        <Separator />
+        <div className="flex justify-between font-semibold">
+          <span>Total</span>
+          <span>{currency} {getCartAmount() === 0 ? 0 : getCartAmount() + delivery_fee}.00</span>
         </div>
-      </div>
-    </div>
+      </CardContent>
+    </Card>
   )
 }
 

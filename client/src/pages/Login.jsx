@@ -4,6 +4,10 @@ import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { loginUser, registerUser, clearAuthError, setInitialized } from '../store/slices/authSlice';
 import { useAuth } from '../hooks/useReduxSelectors';
+import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
+import { Input } from '../components/ui/input';
+import { Button } from '../components/ui/button';
+import { Label } from '../components/ui/label';
 
 const Login = () => {
   const [currentState, setCurrentState] = useState('Login');
@@ -67,127 +71,122 @@ const Login = () => {
     }
 
     if (currentState === 'Sign Up' && !formData.name) {
-      toast.error('Name is required for registration');
+      toast.error('Please enter your name');
       return;
     }
 
     try {
-      let result;
-      
       if (currentState === 'Login') {
-        result = await dispatch(loginUser({
-          email: formData.email.trim(),
-          password: formData.password
-        })).unwrap();
-        
-        toast.success('Login successful!');
+        await dispatch(loginUser({ email: formData.email, password: formData.password })).unwrap();
       } else {
-        result = await dispatch(registerUser({
-          name: formData.name.trim(),
-          email: formData.email.trim(),
-          password: formData.password
-        })).unwrap();
-        
-        toast.success('Registration successful!');
+        await dispatch(registerUser(formData)).unwrap();
       }
-      
-      // Navigation will be handled by useEffect
-      setFormData({ name: '', email: '', password: '' });
-      
     } catch (error) {
-      console.error('❌ Auth error:', error);
-      toast.error(error || 'Authentication failed. Please try again.');
+      console.error('Auth error:', error);
     }
   };
 
   // Show loading only if not initialized and not timed out
   if (!initialized && !initTimeout) {
     return (
-      <div className="flex justify-center items-center h-64">
+      <div className="flex justify-center items-center h-screen">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900"></div>
-        <span className="ml-3 text-gray-600">Checking authentication...</span>
       </div>
     );
   }
 
   return (
-    <form onSubmit={onSubmitHandler} className='flex flex-col items-center w-[90%] sm:max-w-96 m-auto mt-14 gap-4 text-gray-800'>
-      <div className='inline-flex items-center gap-2 mb-2 mt-10'>
-        <p className='prata-regular text-3xl'>{currentState}</p>
-        <hr className='border-none h-[1.5px] w-8 bg-gray-800'/>
-      </div>
-      
-      {/* Show error message if any */}
-      {error && (
-        <div className="w-full p-3 bg-red-100 border border-red-400 text-red-700 rounded">
-          {error}
-        </div>
-      )}
-      
-      {currentState === 'Sign Up' && (
-        <input 
-          name='name'
-          value={formData.name}
-          onChange={onChangeHandler}
-          type="text" 
-          className='w-full px-3 py-2 border border-gray-800' 
-          placeholder='Name' 
-          required
-          disabled={loading}
-        />
-      )}
-      
-      <input 
-        name='email'
-        value={formData.email}
-        onChange={onChangeHandler}
-        type="email" 
-        className='w-full px-3 py-2 border border-gray-800' 
-        placeholder='Email' 
-        required
-        disabled={loading}
-      />
-      
-      <input 
-        name='password'
-        value={formData.password}
-        onChange={onChangeHandler}
-        type="password" 
-        className='w-full px-3 py-2 border border-gray-800' 
-        placeholder='Password' 
-        required
-        disabled={loading}
-      />
-      
-      <div className='w-full flex justify-between text-sm mt-[-8px]'>
-        <p className='cursor-pointer'>Forgot your password?</p>
-        {
-          currentState === 'Login'
-          ? <p onClick={() => !loading && setCurrentState('Sign Up')} className={`cursor-pointer ${loading ? 'opacity-50' : ''}`}>Create account</p>
-          : <p onClick={() => !loading && setCurrentState('Login')} className={`cursor-pointer ${loading ? 'opacity-50' : ''}`}>Login Here</p>
-        }
-      </div>
-      
-      <button 
-        type='submit'
-        disabled={loading}
-        className={`bg-black text-white font-light px-8 py-2 mt-4 transition-opacity ${
-          loading ? 'opacity-50 cursor-not-allowed' : 'hover:opacity-90'
-        }`}
-      >
-        {loading ? (
-          <span className="flex items-center">
-            <svg className="animate-spin -ml-1 mr-3 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-            </svg>
-            Processing...
-          </span>
-        ) : (
-          currentState === 'Login' ? 'Sign In' : 'Sign Up'
-        )}
-      </button>
-    </form>
+    <div className="flex justify-center items-center min-h-[80vh] py-10">
+      <Card className="w-full max-w-md">
+        <CardHeader className="text-center">
+          <CardTitle className="text-2xl prata-regular">
+            {currentState}
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={onSubmitHandler} className="space-y-4">
+            {currentState === 'Sign Up' && (
+              <div className="space-y-2">
+                <Label htmlFor="name">Full Name</Label>
+                <Input
+                  id="name"
+                  name="name"
+                  type="text"
+                  value={formData.name}
+                  onChange={onChangeHandler}
+                  placeholder="Enter your full name"
+                  required
+                />
+              </div>
+            )}
+            
+            <div className="space-y-2">
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                name="email"
+                type="email"
+                value={formData.email}
+                onChange={onChangeHandler}
+                placeholder="Enter your email"
+                required
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="password">Password</Label>
+              <Input
+                id="password"
+                name="password"
+                type="password"
+                value={formData.password}
+                onChange={onChangeHandler}
+                placeholder="Enter your password"
+                required
+              />
+            </div>
+
+            {error && (
+              <div className="text-red-600 text-sm text-center">
+                {error}
+              </div>
+            )}
+
+            <Button 
+              type="submit" 
+              className="w-full" 
+              disabled={loading}
+            >
+              {loading ? 'Please wait...' : currentState}
+            </Button>
+
+            <div className="text-center">
+              {currentState === 'Login' ? (
+                <p className="text-sm">
+                  Create account?{' '}
+                  <span 
+                    onClick={() => setCurrentState('Sign Up')} 
+                    className="text-primary cursor-pointer hover:underline"
+                  >
+                    Click here
+                  </span>
+                </p>
+              ) : (
+                <p className="text-sm">
+                  Already have an account?{' '}
+                  <span 
+                    onClick={() => setCurrentState('Login')} 
+                    className="text-primary cursor-pointer hover:underline"
+                  >
+                    Login here
+                  </span>
+                </p>
+              )}
+            </div>
+          </form>
+        </CardContent>
+      </Card>
+    </div>
   );
 };
 
